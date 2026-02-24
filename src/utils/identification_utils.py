@@ -452,7 +452,7 @@ def compute_essential(robot, traject, ratio_essential = 30):
 
 def compute_SVD_essential(robot, traject, conditioning_ratio = 50):
 
-    YY, TTau = get_big_Y_Tau(robot, traject)
+    YY, _ = get_big_Y_Tau(robot, traject)
 
     U,S,Vh = np.linalg.svd(YY.T @ YY,  compute_uv = True)
     sigma_max = S[0]
