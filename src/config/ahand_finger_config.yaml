@@ -1,0 +1,87 @@
+robot:
+  config: './config/thunder/ahand_thumb_par.yaml'
+  dynamics:
+    link1:
+      inertial:
+        symb: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        mass: 0.0176
+        CoM_x: 0.0
+        CoM_y: 0.0
+        CoM_z: 0.0
+        Ixx: 1.2854008e-05
+        Ixy: 2.04e-08
+        Ixz: 1.89e-06
+        Iyy: 1.225e-05
+        Iyz: 1.51e-07
+        Izz: 2.999e-06
+      friction:
+        symb: [1, 1]
+        Dl: [0.1, 0.01]
+    link2:
+      inertial:
+        symb: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        mass: 0.086
+        CoM_x: 0.0
+        CoM_y: 0.0
+        CoM_z: 0.0
+        Ixx: 1.86e-05
+        Ixy: 1.68e-06
+        Ixz: -6.16e-06
+        Iyy: 4.87e-05
+        Iyz: 3.51e-07
+        Izz: 5.57e-05
+      friction:
+        symb: [1, 1]
+        Dl: [0.1, 0.01]
+    link3:
+      inertial:
+        symb: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        mass: 0.0367
+        CoM_x: 0.0
+        CoM_y: 0.0
+        CoM_z: 0.0
+        Ixx: 3.81e-06
+        Ixy: 5.72e-09
+        Ixz: -9.97e-07
+        Iyy: 1.455e-05
+        Iyz: 2.63e-08
+        Izz: 1.29e-05
+      friction:
+        symb: [1, 1]
+        Dl: [0.1, 0.01]
+    link4:
+      inertial:
+        symb: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        mass: 0.004
+        CoM_x: 0.0
+        CoM_y: 0.0
+        CoM_z: 0.0
+        Ixx: 1.17e-06
+        Ixy: 5.09e-09
+        Ixz: 0.0
+        Iyy: 2.4e-06
+        Iyz: 0.0
+        Izz: 1.67e-06
+      friction:
+        symb: [1, 1]
+        Dl: [0.1, 0.01]
+
+trajectory:
+  type: 'ros2'
+  bag: '/home/leo/Desktop/allegro_hand_ros2_ws/workdir/allegro_hand_4traject_bag'
+  topic: '/allegroHand_0/joint_states'
+  joints: ['joint_4_0', 'joint_5_0', 'joint_6_0', 'joint_7_0']  # Middle joints
+
+processing:
+  cut_off_frequency: 30 # [rad]
+  butterworth_order: 4
+  decimate_factor: 10
+
+identification:
+  weight:
+    loss: 1e6 # Error from Base Parameers
+    norm: 0 # Parameters norm
+    mass: 1e1
+    CoM: 1e2
+    inertia: 1e2
+    link: [1,1,1,1]
