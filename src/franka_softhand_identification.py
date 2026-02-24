@@ -40,12 +40,12 @@ robot_gt = thunder.thunder_franka()
 config_robot = config['robot']
 try:
     # Set initial guess
-    load_params(robot, config_robot['path'])
-    load_params(robot_ig, config_robot['path'])
+    thunder.load_params(robot, config_robot['path'])
+    thunder.load_params(robot_ig, config_robot['path'])
 
     # Set ground truth
     gt_params_path = "/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_SH_par.yaml"
-    load_params(robot_gt, gt_params_path)
+    thunder.load_params(robot_gt, gt_params_path)
     pi_red_CAD = robot_gt.get_par_REG_red()
     pi_dl_CAD = robot_gt.get_par_Dl()
     # Add initial guess with noise
@@ -102,9 +102,9 @@ print("Shape TTau (Mnx1): ", TTau.shape)
 conditioning_ratio = config_iden.get('conditioning_ratio', None)
 
 # Method 1 - OLS ---------------------------------------------------------------
-hat_Pi, metrics = solve_OLS(robot, test_traject, conditioning_ratio = conditioning_ratio)
+hat_pi, metrics = solve_OLS(robot, test_traject, conditioning_ratio = conditioning_ratio)
 if config_iden['method'] == 'OLS|prior':
-    hat_Pi, metrics = solve_OLS_with_prior(robot, test_traject, conditioning_ratio = conditioning_ratio)
+    hat_pi, metrics = solve_OLS_with_prior(robot, test_traject, conditioning_ratio = conditioning_ratio)
 
 
 print("The conditioning number is", metrics['conditioning number'])
@@ -127,7 +127,7 @@ print(sigma_pi_perc.flatten())
 
 # Compute Essential Parameters  ---------------------------------------------------------------
 compute_SVD_essential(robot, test_traject, conditioning_ratio = config_iden.get('conditioning_ratio', 30))
-hat_Pi_e, idx_e = compute_essential(robot, test_traject, ratio_essential = config_iden.get('ratio_essential', 30))
+hat_pi_e, idx_e = compute_essential(robot, test_traject, ratio_essential = config_iden.get('ratio_essential', 30))
 
 
 print(f"Essential parameters indexes: {idx_e}, {len(idx_e)} out of {p} (ratio > 30)")
@@ -135,16 +135,16 @@ print(f"Essential parameters Conditinoning: {np.linalg.cond(YY[:,idx_e])}")
 
 # Method 2 - weighted LS ---------------------------------------------------------------
 print("\nComputing reduced pi solution by WLS")
-hat_Pi_OLS = hat_Pi.copy()
+hat_pi_OLS = hat_pi.copy()
 
 if config_iden['method'] == 'WLS':
-    hat_Pi = solve_WLS(robot, test_traject, conditioning_ratio = conditioning_ratio)
+    hat_pi, metrics = solve_WLS(robot, test_traject, conditioning_ratio = conditioning_ratio)
 elif config_iden['method'] == 'WLS|prior':
-    hat_Pi = solve_WLS_with_prior(robot, test_traject, conditioning_ratio = conditioning_ratio)
+    hat_pi, metrics = solve_WLS_with_prior(robot, test_traject, conditioning_ratio = conditioning_ratio)
 
 # Assign estimation of base inertial parameters
-hat_pi_REG_red = hat_Pi[:-n*(robot.Dl_order)]
-hat_pi_dl = hat_Pi[-n*(robot.Dl_order):]
+hat_pi_REG_red = hat_pi[:-n*(robot.Dl_order)]
+hat_pi_dl = hat_pi[-n*(robot.Dl_order):]
 robot.set_par_REG_red(hat_pi_REG_red)
 robot.set_par_Dl(hat_pi_dl)
 
@@ -156,21 +156,21 @@ Pi_CAD = np.hstack([pi_red_CAD, pi_dl_CAD]).reshape(-1,1)
 residual = np.linalg.norm(TTau - YY @ Pi_CAD)
 print(f"Residuals (CAD): {residual} [Nm]" )
 
-residual = np.linalg.norm(TTau - YY @ hat_Pi_OLS)
+residual = np.linalg.norm(TTau - YY @ hat_pi_OLS)
 print(f"Residuals (OLS): {residual} [Nm]" )
 
-residual = np.linalg.norm(TTau - YY @ hat_Pi)
+residual = np.linalg.norm(TTau - YY @ hat_pi)
 print(f"Residuals: {residual} [Nm]" )
 
 print("Parameters estimation")
-print(hat_Pi.flatten())
+print(hat_pi.flatten())
 print(f"error std. deviation: {sigma_w}")
 print("Parameters std. deviation:")
 print(sigma_pi.flatten())
 print("Parameters std. deviation (%):")
 print(sigma_pi_perc.flatten())
 
-plot_eval_LS_solution(hat_Pi, metrics, robot_gt = robot_gt, block = False)
+plot_eval_LS_solution(hat_pi, metrics, robot_gt = robot_gt, block = False)
 
 # =========================================================================================================================== Plot REDUCED
 # ==========================================================================================================================
@@ -203,8 +203,8 @@ for i in range(test_traject.t.shape[0]):
 
     tau_est = (Y_red@pi_red + Y_dl@pi_dl).flatten()
     delta_tau.append(test_traject.tau[i,:] - tau_est)
-    delta_tau_OLS.append(test_traject.tau[i,:] - (Y_red@hat_Pi_OLS[:-n*(robot.Dl_order)] + Y_dl@hat_Pi_OLS[-n*(robot.Dl_order):]).flatten())
-    delta_tau_E.append(test_traject.tau[i,:] - (Y_[:,idx_e] @ hat_Pi_e).flatten())
+    delta_tau_OLS.append(test_traject.tau[i,:] - (Y_red@hat_pi_OLS[:-n*(robot.Dl_order)] + Y_dl@hat_pi_OLS[-n*(robot.Dl_order):]).flatten())
+    delta_tau_E.append(test_traject.tau[i,:] - (Y_[:,idx_e] @ hat_pi_e).flatten())
     delta_tau_CAD.append(test_traject.tau[i,:] - (Y_red@pi_red_CAD + Y_dl@pi_dl_CAD).flatten())
 delta_tau = np.array(delta_tau)
 delta_tau_OLS = np.array(delta_tau_OLS)

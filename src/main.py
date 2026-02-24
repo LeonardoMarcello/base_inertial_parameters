@@ -12,9 +12,9 @@ with open(config_path, 'r') as f:
    config = yaml.load(f, Loader=SafeLoader)
 
 franka = thunder.thunder_franka()
-load_params(franka, config['robot']['path'])
+thunder.load_params(franka, config['robot']['path'])
 
-# Setup Identifier Object
+# Setup Identifier Object and Solve Identification Problem ----
 Identifier = Identifier(franka, config_path=config_path)
 Identifier.init()                      # 1_ load and process trajectory
 Identifier.solve_base_parameter()      # 2_ compute parameters in the base

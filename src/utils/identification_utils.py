@@ -12,19 +12,6 @@ import matplotlib.pyplot as plt
 import casadi
 from utils.casadi_utils import *
 
-def load_params(robot, config_path):
-    with open(config_path, 'r') as f:
-        config_robot = yaml.safe_load(f)
-
-    robot.set_par_DYN(config_robot['par_DYN'])
-    robot.set_par_Dl(config_robot['par_Dl'])
-    robot.set_par_REG(config_robot['par_REG'])
-    robot.set_par_REG_red(config_robot['par_REG_red'])
-    try:
-        robot.set_par_Ia(config_robot['par_Ia'])
-    except:
-        pass
-
 
 def print_base_inertial_parameters(robot):
     param_names = ['M','MX','MY','MZ','XX','XY','XZ','YY','YZ','ZZ','Ia']
@@ -126,19 +113,19 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
     else:
         pseudo_inv =  np.linalg.inv(YY.T @ YY)
 
-    hat_Pi = pseudo_inv @ YY.T @ TTau
+    hat_pi = pseudo_inv @ YY.T @ TTau
 
     # > Compute Solution metrics
     metrics = {}
     metrics['conditioning number'] = np.linalg.cond(YY)
 
-    residual = TTau - YY @ hat_Pi
+    residual = TTau - YY @ hat_pi
     metrics['residual'] = np.linalg.norm(residual)
 
     # std.dev. of residual error
     n = YY.shape[0]
-    p = hat_Pi.shape[0]
-    sigma_w_2 = np.linalg.norm((TTau - YY@hat_Pi),ord=2)**2 / (
+    p = hat_pi.shape[0]
+    sigma_w_2 = np.linalg.norm((TTau - YY@hat_pi),ord=2)**2 / (
         n - p
     )
     metrics['error standard deviation'] = sigma_w_2
@@ -149,13 +136,13 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
-    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_Pi[i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
+    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     metrics['parameters standard deviation'] = sigma_pi
     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
 
-    return hat_Pi, metrics
+    return hat_pi, metrics
 
 def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     # > Compute pi_OLS = (Y.t @ Y)^-1 @ Y.t @ tau
@@ -178,19 +165,19 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     else:
         pseudo_inv =  np.linalg.inv(YY.T @ YY)
 
-    hat_Pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
+    hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
 
     # > Compute metrics
     metrics = {}
     metrics['conditioning number'] = np.linalg.cond(YY)
 
-    residual = TTau - YY @ hat_Pi
+    residual = TTau - YY @ hat_pi
     metrics['residual'] = np.linalg.norm(residual)
 
     # std.dev. of residual error
     n = YY.shape[0]
-    p = hat_Pi.shape[0]
-    sigma_w_2 = np.linalg.norm((TTau - YY@hat_Pi),ord=2)**2 / (
+    p = hat_pi.shape[0]
+    sigma_w_2 = np.linalg.norm((TTau - YY@hat_pi),ord=2)**2 / (
         n - p
     )
     metrics['error standard deviation'] = sigma_w_2
@@ -201,12 +188,12 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
-    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_Pi[i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
+    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     metrics['parameters standard deviation'] = sigma_pi
     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
-    return hat_Pi, metrics
+    return hat_pi, metrics
 
 def solve_WLS(robot, traject, conditioning_ratio = None):
     """
@@ -220,7 +207,7 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
     # > Compute pi_WLS = (Y.t @ G.t @ G @ Y)^-1 @ Y.t @ G.t @ tau
     # OLS solution for residuals
     YY, TTau = get_big_Y_Tau(robot, traject)
-    hat_Pi, _ = solve_OLS(robot, traject, conditioning_ratio=conditioning_ratio)
+    hat_pi, _ = solve_OLS(robot, traject, conditioning_ratio=conditioning_ratio)
     # computation of weighting matrix
     sigma_w_2 = np.zeros(robot.numJoints)   # effort measurements noise std.dev. at joint level
     nb_samples = YY.shape[0]            # num of samples
@@ -228,7 +215,7 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
     W_diag = np.zeros(nb_samples*robot.numJoints)
 
     # pre-compute all effort residual
-    residual = TTau - YY @ hat_Pi
+    residual = TTau - YY @ hat_pi
 
     # std.dev for joint i-th measurements using OLS residuals
     for i in range(robot.numJoints):
@@ -265,19 +252,19 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
         pseudo_inv = U @ S_trunc @ Vh
     else:
         pseudo_inv = np.linalg.inv(YY_weighted.T @ YY_weighted)
-    hat_Pi = pseudo_inv @ YY_weighted.T @ TTau_weighted
+    hat_pi = pseudo_inv @ YY_weighted.T @ TTau_weighted
 
     # > Compute metrics
     metrics = {}
     metrics['conditioning number'] = np.linalg.cond(YY)
 
-    residual = TTau_weighted - YY_weighted @ hat_Pi
+    residual = TTau_weighted - YY_weighted @ hat_pi
     metrics['residual'] = np.linalg.norm(residual)
 
     # std.dev. of residual error
     n = YY.shape[0]
-    p = hat_Pi.shape[0]
-    sigma_w_2 = np.linalg.norm((TTau_weighted - YY_weighted@hat_Pi),ord=2)**2 / (
+    p = hat_pi.shape[0]
+    sigma_w_2 = np.linalg.norm((TTau_weighted - YY_weighted@hat_pi),ord=2)**2 / (
         n - p
     )
     metrics['error standard deviation'] = sigma_w_2
@@ -288,12 +275,12 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
-    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_Pi[i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
+    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     metrics['parameters standard deviation'] = sigma_pi
     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
-    return hat_Pi, metrics
+    return hat_pi, metrics
 
 def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     """
@@ -306,7 +293,7 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     # OLS solution for residuals
     hat_pi_ref = np.hstack([robot.get_par_REG_red(),robot.get_par_Dl()]).reshape(-1,1)
     YY, TTau = get_big_Y_Tau(robot, traject)
-    hat_Pi, _ = solve_OLS_with_prior(robot, traject, conditioning_ratio=conditioning_ratio)
+    hat_pi, _ = solve_OLS_with_prior(robot, traject, conditioning_ratio=conditioning_ratio)
 
 
     # computation of weighting matrix
@@ -315,7 +302,7 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     p = YY.shape[1]                     # num of parameters
     W_diag = np.zeros(nb_samples*robot.numJoints)
 
-    residual = TTau - YY @ hat_Pi
+    residual = TTau - YY @ hat_pi
     for i in range(robot.numJoints):
 
         # std.dev for joint i-th measuerements using OLS residuals
@@ -350,21 +337,21 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
         S_trunc = np.linalg.inv(np.diag(S))
         S_trunc[r:,r:] = 0
         pseudo_inv = U @ S_trunc @ Vh
-        hat_Pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
+        hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
     else:
-        hat_Pi = hat_pi_ref +  np.linalg.inv(YY.T @ YY) @ YY.T @ (TTau - YY @ hat_pi_ref)
+        hat_pi = hat_pi_ref +  np.linalg.inv(YY.T @ YY) @ YY.T @ (TTau - YY @ hat_pi_ref)
 
     # > Compute metrics
     metrics = {}
     metrics['conditioning number'] = np.linalg.cond(YY)
 
-    residual = TTau_weighted - YY_weighted @ hat_Pi
+    residual = TTau_weighted - YY_weighted @ hat_pi
     metrics['residual'] = np.linalg.norm(residual)
 
     # std.dev. of residual error
     n = YY.shape[0]
-    p = hat_Pi.shape[0]
-    sigma_w_2 = np.linalg.norm((TTau_weighted - YY_weighted@hat_Pi),ord=2)**2 / (
+    p = hat_pi.shape[0]
+    sigma_w_2 = np.linalg.norm((TTau_weighted - YY_weighted@hat_pi),ord=2)**2 / (
         n - p
     )
     metrics['error standard deviation'] = sigma_w_2
@@ -375,34 +362,34 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
-    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_Pi[i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
+    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     metrics['parameters standard deviation'] = sigma_pi
     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
-    return hat_Pi, metrics
+    return hat_pi, metrics
 
 
 
-# def get_metrics(robot, traject, hat_Pi = None, hat_Pi_essential = None, idx_essental = None):
+# def get_metrics(robot, traject, hat_pi = None, hat_pi_essential = None, idx_essental = None):
 #     YY, TTau = get_big_Y_Tau(robot, traject)
 #     metrics = {}
 #     metrics['conditioning number'] = np.linalg.cond(YY)
 
-#     if hat_Pi is None and hat_Pi_essential is None:
+#     if hat_pi is None and hat_pi_essential is None:
 #         # Ordinary Leat Square solution
-#         hat_Pi = np.linalg.pinv(YY) @ TTau
-#     elif hat_Pi is None and hat_Pi_essential is not None:
-#         hat_Pi = hat_Pi_essential
+#         hat_pi = np.linalg.pinv(YY) @ TTau
+#     elif hat_pi is None and hat_pi_essential is not None:
+#         hat_pi = hat_pi_essential
 #         YY = YY[:,idx_essental]
 
-#     residual = TTau - YY @ hat_Pi
+#     residual = TTau - YY @ hat_pi
 #     metrics['residual'] = np.linalg.norm(residual)
 
 #     # std.dev. of residual error
 #     n = YY.shape[0]
-#     p = hat_Pi.shape[0]
-#     sigma_w_2 = np.linalg.norm((TTau - YY@hat_Pi),ord=2)**2 / (
+#     p = hat_pi.shape[0]
+#     sigma_w_2 = np.linalg.norm((TTau - YY@hat_pi),ord=2)**2 / (
 #         n - p
 #     )
 #     metrics['error standard deviation'] = sigma_w_2
@@ -412,8 +399,8 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
 #     metrics['parameters covariance matrix'] = C_w
 
 #     # relative std.dev. of estimated parameters
-#     sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
-#     sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_Pi[i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
+#     sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+#     sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
 #     metrics['parameters standard deviation'] = sigma_pi
 #     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
@@ -428,15 +415,15 @@ def compute_essential(robot, traject, ratio_essential = 30):
 
     #
     print(f"Computing essential parameters with ratio {ratio_essential} between max and min relative std.dev.")
-    hat_Pi = np.linalg.pinv(YY) @ TTau
+    hat_pi = np.linalg.pinv(YY) @ TTau
     n = YY.shape[0]
-    p = hat_Pi.shape[0]
-    sigma_w_2 = np.linalg.norm((TTau - np.dot(YY, hat_Pi)),ord=2)**2 / (
+    p = hat_pi.shape[0]
+    sigma_w_2 = np.linalg.norm((TTau - np.dot(YY, hat_pi)),ord=2)**2 / (
         n - p
     )
     C_w = sigma_w_2 * np.linalg.inv(np.dot(YY.T, YY))
-    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_Pi[i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
+    sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     s_max, idx_max = np.max(sigma_pi_perc), np.argmax(sigma_pi_perc)
     s_min, idx_min = np.min(sigma_pi_perc), np.argmin(sigma_pi_perc)
 
@@ -447,19 +434,19 @@ def compute_essential(robot, traject, ratio_essential = 30):
 
         YY_e = YY[:, indeces_essential]
 
-        hat_Pi = np.linalg.pinv(YY_e) @ TTau
+        hat_pi = np.linalg.pinv(YY_e) @ TTau
         n = YY_e.shape[0]
-        p = hat_Pi.shape[0]
-        sigma_w_2 = np.linalg.norm((TTau - np.dot(YY_e, hat_Pi)),ord=2)**2 / (
+        p = hat_pi.shape[0]
+        sigma_w_2 = np.linalg.norm((TTau - np.dot(YY_e, hat_pi)),ord=2)**2 / (
             n - p
         )
         C_w = sigma_w_2 * np.linalg.inv(np.dot(YY_e.T, YY_e))
-        sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
-        sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_Pi[i]) for i in range(hat_Pi.shape[0])]).reshape(hat_Pi.shape)
+        sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+        sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
         s_max, idx_max = np.max(sigma_pi_perc), np.argmax(sigma_pi_perc)
         s_min, idx_min = np.min(sigma_pi_perc), np.argmin(sigma_pi_perc)
 
-    hat_pi_essential = hat_Pi
+    hat_pi_essential = hat_pi
 
     return hat_pi_essential, indeces_essential
 
