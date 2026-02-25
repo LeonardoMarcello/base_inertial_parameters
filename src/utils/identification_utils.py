@@ -750,7 +750,7 @@ def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = N
 
 
 
-def plot_identification(robot, traject, block = True):
+def plot_identification(robot, traject, metrics, block = True):
     tau_M = []
     tau_C = []
     tau_G = []
@@ -796,7 +796,6 @@ def plot_identification(robot, traject, block = True):
 
 
     rmse = np.sqrt(np.mean(np.sum(delta_tau**2, axis=1))) # RMSE = Sqrt{ 1/M Sum{||e||_2}  }
-    metrics = get_metrics(robot,traject)
     cond_num = metrics['conditioning number']
     # --- 1. Plot tau ---
     colors = {

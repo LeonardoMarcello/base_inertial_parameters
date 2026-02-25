@@ -171,7 +171,7 @@ print(sigma_pi.flatten())
 print("Parameters std. deviation (%):")
 print(sigma_pi_perc.flatten())
 
-plot_eval_LS_solution(hat_pi, metrics, robot_gt = robot_gt, block = False)
+fig_base = plot_eval_LS_solution(hat_pi, metrics, robot_gt = robot_gt, block = False)
 
 # =========================================================================================================================== Plot REDUCED
 # ==========================================================================================================================
@@ -260,7 +260,7 @@ plot_table(robot, robot_ground_truth = robot_gt)
 
 # =========================================================================================================================== Plot REDUCED
 # ==========================================================================================================================
-fig_identif = plot_identification(robot, test_traject, block = False)
+fig_identif = plot_identification(robot, test_traject, metrics, block = False)
 fig_comparison = plot_link_solution(robot, robot_gt, 6, block = True)
 
 # =========================================================================================================================== Store file
@@ -274,6 +274,8 @@ fig_q.savefig(os.path.join(results_dir, 'q.png'), bbox_inches='tight', dpi=300)
 fig_qd.savefig(os.path.join(results_dir, 'qd.png'), bbox_inches='tight', dpi=300)
 fig_qdd.savefig(os.path.join(results_dir, 'qdd.png'), bbox_inches='tight', dpi=300)
 fig_tau.savefig(os.path.join(results_dir, 'tau.png'), bbox_inches='tight', dpi=300)
+# save base param estim tau comparison
+fig_base.savefig(os.path.join(results_dir, 'base_param_results.png'), bbox_inches='tight', dpi=300)
 # save fitting tau comparison
 fig_fitting.savefig(os.path.join(results_dir, 'fitting_results.png'), bbox_inches='tight', dpi=300)
 # save identification results

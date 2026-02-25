@@ -23,12 +23,12 @@ processing:
 
 
 identification:
-  method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
-  #conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning ( Default: None)
+  method: 'WLS|prior' # OLS, WLS, OLS|prior, WLS|prior
+  conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning ( Default: None)
 
   positive_threshold: 1e-16 # positive threshold for constrained problem definition 
   weight:
-    loss: 10 # gain factor for base parameters optimization
+    loss: 1 # gain factor for base parameters optimization
 
     mass: 1e-3     # as mass std.dev [Kg]
     CoM: 1e-3      # as CoM std.dev [m]
