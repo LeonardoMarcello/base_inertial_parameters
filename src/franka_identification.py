@@ -50,8 +50,8 @@ try:
     pi_dl_CAD = robot_gt.get_par_Dl()
 
     # Add initial guess with noise
-    std = 0.1
-    #std = 0
+    #std = 0.1
+    std = 0
     robot.set_par_DYN(robot.get_par_DYN()  + robot.get_par_DYN() * np.random.normal(0, std, robot.get_par_DYN().shape))
     robot.set_par_REG(robot.get_dyn2reg())
     robot.set_par_REG_red(robot.get_reg2red())

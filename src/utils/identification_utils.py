@@ -337,9 +337,9 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
         S_trunc = np.linalg.inv(np.diag(S))
         S_trunc[r:,r:] = 0
         pseudo_inv = U @ S_trunc @ Vh
-        hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
     else:
-        hat_pi = hat_pi_ref +  np.linalg.inv(YY.T @ YY) @ YY.T @ (TTau - YY @ hat_pi_ref)
+        pseudo_inv =  np.linalg.inv(YY.T @ YY)
+    hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
 
     # > Compute metrics
     metrics = {}
@@ -581,14 +581,14 @@ def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = N
 
     # resid beta
     sigma_pi_inv = 0
-    if sigma_pi is not None and sigma_pi.shape[0] != sigma_pi.shape[0]:
+    if sigma_pi is not None and sigma_pi.shape[0] != sigma_pi.shape[1]:
         # weight with inverse of relative std.dev.
-        sigma_pi_inv = np.diag(1/sigma_pi.flatten())
+        sigma_pi_inv = np.diag(1/sigma_pi[:-n*2].flatten())
         W_sigma_inv = sigma_pi_inv/np.trace(sigma_pi_inv) # sigma_pi is parameters relative std.dev
-        f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ W_sigma_inv[:-n*2,:-n*2] @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
-    elif sigma_pi is not None and sigma_pi.shape[0] != sigma_pi.shape[0]:
+        f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
+    elif sigma_pi is not None and sigma_pi.shape[0] == sigma_pi.shape[1]:
         # use covariance matrix
-        W_sigma_inv = np.linalg.inv(sigma_pi)
+        W_sigma_inv = np.linalg.pinv(sigma_pi[:-n*2,:-n*2])
         f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
     else:
         # do not use weights

@@ -23,8 +23,8 @@ processing:
 
 
 identification:
-  method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
-  #conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning ( Default: None)
+  method: 'WLS|prior' # OLS, WLS, OLS|prior, WLS|prior
+  conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning ( Default: None)
 
   positive_threshold: 1e-16 # positive threshold for constrained problem definition 
   weight:

@@ -1,12 +1,12 @@
 robot:
-  path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_par.yaml'
+  path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/franka_par.yaml'
 
 trajectory:
   type: 'ros2'
 
-  #bag: './rosbag/computed_torque_60s' # <-- Empty
+  bag: './rosbag/computed_torque_60s' # <-- Empty
   #bag: './rosbag/panda_softhand_computed_torque_50s_v3' # <-- Softhand
-  bag: './rosbag/softhand_sinusoidal_CT' # <-- Softhand (NEW)
+  #bag: './rosbag/softhand_sinusoidal_CT' # <-- Softhand (NEW)
 
   topic: '/computed_torque_controller/joint_states'
 
@@ -23,8 +23,8 @@ processing:
 
 
 identification:
-  method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
-  #conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning ( Default: None)
+  method: 'WLS|prior' # OLS, WLS, OLS|prior, WLS|prior
+  conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning ( Default: None)
 
   positive_threshold: 1e-16 # positive threshold for constrained problem definition 
   weight:
@@ -34,4 +34,4 @@ identification:
     CoM: 1e-3      # as CoM std.dev [m]
     inertia: 1e-6  # as Inertia std.dev [Kg/m^2]
 
-    link: [1, 1, 1, 1, 1, 1, .01]
+    link: [1, 1, 1, 1, 1, 1, 1]

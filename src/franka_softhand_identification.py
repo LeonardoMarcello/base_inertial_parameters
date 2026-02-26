@@ -265,7 +265,7 @@ fig_comparison = plot_link_solution(robot, robot_gt, 6, block = True)
 
 # =========================================================================================================================== Store Results
 # ==========================================================================================================================
-print("\n>> Export:")
+print(f"\n>> Export Results in folder '{results_dir}'")
 # copy config file
 import shutil
 shutil.copy2(config_path, os.path.join(results_dir, os.path.basename(config_path)))
