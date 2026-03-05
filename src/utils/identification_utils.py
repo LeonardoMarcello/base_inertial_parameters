@@ -59,8 +59,6 @@ def print_base_inertial_parameters(robot):
 
 def get_big_Y_Tau(robot, traject):
     ## YY oredred for [reg_red, friction]
-    dt = np.mean(np.diff(traject.t))
-
     Y_log = []
     for i in range(traject.t.shape[0]):
         q = traject.q[i,:]
@@ -85,15 +83,20 @@ def get_big_Y_Tau(robot, traject):
     YY = np.concatenate([np.asarray(Y) for Y in Y_log], axis=0)  # (M*n) x p
     TTau = np.concatenate([np.asarray(t).reshape(n, 1) for t in traject.tau], axis=0)  # (M*n) x 1
 
-    return YY, TTau
-
-def solve_OLS(robot, traject, conditioning_ratio = None):
-    # > Compute pi_OLS = (Y.t @ Y)^-1 @ Y.t @ tau
-    YY, TTau = get_big_Y_Tau(robot, traject)
+    observable_parameters_mask = [1 for _ in range(YY.shape[1])]
 
     if np.linalg.matrix_rank(YY)<YY.shape[1]:
         print(f"[WARNING] Matrix is not full colum rank {np.linalg.matrix_rank(YY)}/{YY.shape[1]} - the solution is not unique" )
+        for i in range(YY.shape[1]):
+            if np.linalg.norm(YY[:,i]) < 1e-10:
+                print(f"parameters {i} of the base is non-observable")
+                observable_parameters_mask[i] = 0
 
+    return YY, TTau, observable_parameters_mask
+
+def solve_OLS(robot, traject, conditioning_ratio = None):
+    # > Compute pi_OLS = (Y.t @ Y)^-1 @ Y.t @ tau
+    YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
     p = YY.shape[1] + 1 # mininum eigenvalue
     if conditioning_ratio is not None:
         U,S,Vh = np.linalg.svd(YY.T @ YY,  compute_uv = True)
@@ -111,12 +114,13 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
         Sinv_trunc[p:,p:] = 0
         pseudo_inv = U @ Sinv_trunc @ Vh
     else:
-        pseudo_inv =  np.linalg.inv(YY.T @ YY)
+        pseudo_inv =  np.linalg.pinv(YY.T @ YY)
 
     hat_pi = pseudo_inv @ YY.T @ TTau
 
     # > Compute Solution metrics
     metrics = {}
+    metrics['observable base parameters mask'] = observable_mask
     metrics['conditioning number'] = np.linalg.cond(YY)
 
     residual = TTau - YY @ hat_pi
@@ -147,7 +151,7 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
 def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     # > Compute pi_OLS = (Y.t @ Y)^-1 @ Y.t @ tau
     hat_pi_ref = np.hstack([robot.get_par_REG_red(), robot.get_par_Dl()]).reshape(-1,1)
-    YY, TTau = get_big_Y_Tau(robot, traject)
+    YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
 
     if conditioning_ratio is not None:
         U,S,Vh = np.linalg.svd(YY.T @ YY,  compute_uv = True)
@@ -163,12 +167,13 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
         S_trunc[p:,p:] = 0
         pseudo_inv = U @ S_trunc @ Vh
     else:
-        pseudo_inv =  np.linalg.inv(YY.T @ YY)
+        pseudo_inv =  np.linalg.pinv(YY.T @ YY)
 
     hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
 
     # > Compute metrics
     metrics = {}
+    metrics['observable base parameters mask'] = observable_mask
     metrics['conditioning number'] = np.linalg.cond(YY)
 
     residual = TTau - YY @ hat_pi
@@ -206,7 +211,7 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
 
     # > Compute pi_WLS = (Y.t @ G.t @ G @ Y)^-1 @ Y.t @ G.t @ tau
     # OLS solution for residuals
-    YY, TTau = get_big_Y_Tau(robot, traject)
+    YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
     hat_pi, _ = solve_OLS(robot, traject, conditioning_ratio=conditioning_ratio)
     # computation of weighting matrix
     sigma_w_2 = np.zeros(robot.numJoints)   # effort measurements noise std.dev. at joint level
@@ -251,11 +256,12 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
         S_trunc[r:,r:] = 0
         pseudo_inv = U @ S_trunc @ Vh
     else:
-        pseudo_inv = np.linalg.inv(YY_weighted.T @ YY_weighted)
+        pseudo_inv = np.linalg.pinv(YY_weighted.T @ YY_weighted)
     hat_pi = pseudo_inv @ YY_weighted.T @ TTau_weighted
 
     # > Compute metrics
     metrics = {}
+    metrics['observable base parameters mask'] = observable_mask
     metrics['conditioning number'] = np.linalg.cond(YY)
 
     residual = TTau_weighted - YY_weighted @ hat_pi
@@ -292,7 +298,7 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
 
     # OLS solution for residuals
     hat_pi_ref = np.hstack([robot.get_par_REG_red(),robot.get_par_Dl()]).reshape(-1,1)
-    YY, TTau = get_big_Y_Tau(robot, traject)
+    YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
     hat_pi, _ = solve_OLS_with_prior(robot, traject, conditioning_ratio=conditioning_ratio)
 
 
@@ -338,11 +344,12 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
         S_trunc[r:,r:] = 0
         pseudo_inv = U @ S_trunc @ Vh
     else:
-        pseudo_inv =  np.linalg.inv(YY.T @ YY)
+        pseudo_inv =  np.linalg.pinv(YY.T @ YY)
     hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
 
     # > Compute metrics
     metrics = {}
+    metrics['observable base parameters mask'] = observable_mask
     metrics['conditioning number'] = np.linalg.cond(YY)
 
     residual = TTau_weighted - YY_weighted @ hat_pi
@@ -470,7 +477,7 @@ def compute_SVD_essential(robot, traject, conditioning_ratio = 50):
 
     return Vh[:p]
 
-def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = None):
+def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = False, path = None):
     # robot.set_par_REG_red(...) must be called before to set proper estimated base inertial parameters
     POSITIVE_THRESH = float(config['identification'].get('positive_threshold',1e-16))
 
@@ -517,6 +524,7 @@ def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = N
 
     # define optim problem
     hat_par_REG_sym = casadi.SX.sym('Pi', n*par_per_link)    # Parameters to estimate (dyn + motor inertia)
+    hat_par_DYN_sym = reg2dyn(hat_par_REG_sym)
 
 
     g = []          # Constraints
@@ -524,41 +532,51 @@ def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = N
     lb = []         # Lower bound
     d = casadi.SX(n,5)
     for i in range(n):
-        m = hat_par_REG_sym[i*10]                     # mass
+        m = hat_par_DYN_sym[i*10]                     # mass
 
         # Mass must be positive
         g += [m]             # [Kg]
         lb += [1e-3]
         ub += [casadi.inf]
 
-        # positive definite inertia matrix
-        Ib_reg = casadi.SX(3,3)
-        Ib_reg[0,0] = hat_par_REG_sym[i*10 + 4]
-        Ib_reg[0,1] = hat_par_REG_sym[i*10 + 5]
-        Ib_reg[0,2] = hat_par_REG_sym[i*10 + 6]
-        Ib_reg[1,0] = hat_par_REG_sym[i*10 + 5]
-        Ib_reg[1,1] = hat_par_REG_sym[i*10 + 7]
-        Ib_reg[1,2] = hat_par_REG_sym[i*10 + 8]
-        Ib_reg[2,0] = hat_par_REG_sym[i*10 + 6]
-        Ib_reg[2,1] = hat_par_REG_sym[i*10 + 8]
-        Ib_reg[2,2] = hat_par_REG_sym[i*10 + 9]
-        
+        # Center of mass
         c = casadi.SX(3,1)
-        c[0,0] = hat_par_REG_sym[i*10 + 1]/(m+POSITIVE_THRESH)
-        c[1,0] = hat_par_REG_sym[i*10 + 2]/(m+POSITIVE_THRESH)
-        c[2,0] = hat_par_REG_sym[i*10 + 3]/(m+POSITIVE_THRESH)
-        
-        Ib = Ib_reg - m @casadi_skew(c).T @ casadi_skew(c)
+        c[0,0] = hat_par_DYN_sym[i*10 + 1]#/(m+POSITIVE_THRESH)
+        c[1,0] = hat_par_DYN_sym[i*10 + 2]#/(m+POSITIVE_THRESH)
+        c[2,0] = hat_par_DYN_sym[i*10 + 3]#/(m+POSITIVE_THRESH)
+
+        # positive definite inertia matrix
+        Ib = casadi.SX(3,3)
+        Ib[0,0] = hat_par_DYN_sym[i*10 + 4]
+        Ib[0,1] = hat_par_DYN_sym[i*10 + 5]
+        Ib[0,2] = hat_par_DYN_sym[i*10 + 6]
+        Ib[1,0] = hat_par_DYN_sym[i*10 + 5]
+        Ib[1,1] = hat_par_DYN_sym[i*10 + 7]
+        Ib[1,2] = hat_par_DYN_sym[i*10 + 8]
+        Ib[2,0] = hat_par_DYN_sym[i*10 + 6]
+        Ib[2,1] = hat_par_DYN_sym[i*10 + 8]
+        Ib[2,2] = hat_par_DYN_sym[i*10 + 9]
+
+
+        #Ib = Ib_reg - m @casadi_skew(c).T @ casadi_skew(c)
 
         # !Criterio Sylvestr: det sottomatrici!
-        d[i,0] = det(Ib[:3,:3])
-        d[i,1] = det(Ib[:2,:2])
-        d[i,2] = det(Ib[:1,:1])
-        d[i,3] = det(Ib[2,2])
-        d[i,4] = det(Ib[1,1])
+        d[i,0] = 1e6*det(Ib[:3,:3])
+        d[i,1] = 1e6*det(Ib[:2,:2])
+        d[i,2] = 1e6*det(Ib[:1,:1])
+        d[i,3] = 1e6*det(Ib[2,2])
+        d[i,4] = 1e6*det(Ib[1,1])
         g +=  [d[i,0],              d[i,1],                 d[i,2], d[i,3], d[i,4]]
         lb += [POSITIVE_THRESH,     POSITIVE_THRESH,        POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
         ub += [casadi.inf,          casadi.inf,             casadi.inf, casadi.inf, casadi.inf]
+
+        # Triangular inequalities
+        Ib[0,0] + Ib[1,1] - Ib[2,2]
+        Ib[0,0] + Ib[1,1] - Ib[2,2]
+        Ib[0,0] + Ib[1,1] - Ib[2,2]
+        g +=  [Ib[0,0] + Ib[1,1] - Ib[2,2],             Ib[0,0] + Ib[2,2] - Ib[1,1],                 Ib[2,2] + Ib[1,1] - Ib[0,0]]
+        lb += [POSITIVE_THRESH,                                 POSITIVE_THRESH,                             POSITIVE_THRESH]
+        ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
 
         # Positive motor inertias
         if par_per_link > 10:
@@ -576,7 +594,7 @@ def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = N
     w_link = np.array(config_ident['weight']['link'], dtype=float)   # wheight link differently
     if len(w_link)!=n:
         print("[WARN] The lenght of link weight is bad setted. proceding with equal weighting for each link")
-        w_link = [1 for i in range(n)]
+        w_link = [1 for _ in range(n)]
     w_link = w_link/np.sum(w_link)
 
     # resid beta
@@ -598,13 +616,13 @@ def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = N
     f_mass = 0
     f_com = 0
     f_inertia = 0
-    a = np.min(hat_par_REG_0[0::10]) # M
-    b = np.min(np.hstack([hat_par_REG_0[1::10],hat_par_REG_0[2::10],hat_par_REG_0[3::10]])) # MCoM
-    c = np.min(np.hstack([hat_par_REG_0[4::10],hat_par_REG_0[7::10],hat_par_REG_0[9::10]])) # I on diagonal
-    w_mass    = 1/w_mass               # define inv. of std. dev
+
+    w_mass    = 1/w_mass               # define weight as inverse of std. dev
     w_com     = 1/w_com
     w_inertia = 1/w_inertia
+
     for i in range(n):
+        # REG version
         par_REG_link_i = hat_par_REG_0[10*i:10*(i+1)]
 
         f_mass      +=  w_link[i] @  casadi.sumsqr(hat_par_REG_sym[10*i] - par_REG_link_i[0]) # M
@@ -617,24 +635,39 @@ def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = N
                                      casadi.sumsqr(hat_par_REG_sym[10*i+7] - par_REG_link_i[7]) +   # Iyy
                                      casadi.sumsqr(hat_par_REG_sym[10*i+8] - par_REG_link_i[8]) +   # Iyz
                                      casadi.sumsqr(hat_par_REG_sym[10*i+9] - par_REG_link_i[9]))    # Izz
+        
+        # # DYN version
+        # par_DYN_link_i = hat_par_DYN_0[10*i:10*(i+1)]
+        # f_mass      +=  w_link[i] @  casadi.sumsqr(hat_par_DYN_sym[10*i]   - par_DYN_link_i[0]) # M
+        # f_com       +=  w_link[i] @ (casadi.sumsqr(hat_par_DYN_sym[10*i+1] - par_DYN_link_i[1]) + # CX
+        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+2] - par_DYN_link_i[2]) + # CY
+        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+3] - par_DYN_link_i[3]))  # CZ
+        # f_inertia   +=  w_link[i] @ (casadi.sumsqr(hat_par_DYN_sym[10*i+4] - par_DYN_link_i[4]) +   # Ixx
+        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+5] - par_DYN_link_i[5]) +   # Ixy
+        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+6] - par_DYN_link_i[6]) +   # Ixz
+        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+7] - par_DYN_link_i[7]) +   # Iyy
+        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+8] - par_DYN_link_i[8]) +   # Iyz
+        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+9] - par_DYN_link_i[9]))    # Izz
+
+
 
     # compute weight normalization at 1
-    k=0
-    for i in range(n):
-        # par_REG_link_i = hat_par_REG_0[10*i:10*(i+1)]
-        # W_normalization += W_link[i]*(W_mass/np.power(par_REG_link_i[0],2) + 
-        #                               W_com/(np.power(par_REG_link_i[1]/par_REG_link_i[0],2)) +
-        #                               W_com/(np.power(par_REG_link_i[2]/par_REG_link_i[0],2)) +
-        #                               W_com/(np.power(par_REG_link_i[3]/par_REG_link_i[0],2)) + 
-        #                               W_inertia/np.power(par_REG_link_i[4],2) + 
-        #                               W_inertia/np.power(par_REG_link_i[5],2) +
-        #                               W_inertia/np.power(par_REG_link_i[6],2) +
-        #                               W_inertia/np.power(par_REG_link_i[7],2) +
-        #                               W_inertia/np.power(par_REG_link_i[8],2) +
-        #                               W_inertia/np.power(par_REG_link_i[9],2))
-        # k += w_link[i]*(w_mass/(a*a) + 3*w_com*(a*a)/(b*b) + 6*w_inertia/(c*c))
-        k += w_link[i]*(w_mass + 3*w_com + 6*w_inertia)
-    #w_normalization = (1-w_loss)/k
+    # k=0
+    # for i in range(n):
+    #     # par_REG_link_i = hat_par_REG_0[10*i:10*(i+1)]
+    #     # W_normalization += W_link[i]*(W_mass/np.power(par_REG_link_i[0],2) + 
+    #     #                               W_com/(np.power(par_REG_link_i[1]/par_REG_link_i[0],2)) +
+    #     #                               W_com/(np.power(par_REG_link_i[2]/par_REG_link_i[0],2)) +
+    #     #                               W_com/(np.power(par_REG_link_i[3]/par_REG_link_i[0],2)) + 
+    #     #                               W_inertia/np.power(par_REG_link_i[4],2) + 
+    #     #                               W_inertia/np.power(par_REG_link_i[5],2) +
+    #     #                               W_inertia/np.power(par_REG_link_i[6],2) +
+    #     #                               W_inertia/np.power(par_REG_link_i[7],2) +
+    #     #                               W_inertia/np.power(par_REG_link_i[8],2) +
+    #     #                               W_inertia/np.power(par_REG_link_i[9],2))
+    #     # k += w_link[i]*(w_mass/(a*a) + 3*w_com*(a*a)/(b*b) + 6*w_inertia/(c*c))
+    #     k += w_link[i]*(w_mass + 3*w_com + 6*w_inertia)
+    # #w_normalization = (1-w_loss)/k
     w_normalization = 1
 
     # Problem
@@ -668,16 +701,17 @@ def solve_dynamics(robot, config, sigma_pi = None, export_file = False, path = N
 
 
     # Options
-    opts = {
-        "ipopt": {
-            "tol": 1e-4,
-            "constr_viol_tol": 1e-6,
-            "acceptable_tol": 1e-5,
-            "dual_inf_tol": 1e-6,
-            "compl_inf_tol": 1e-6,
-            "max_iter": 50000,
+    if opts is None:
+        opts = {
+            "ipopt": {
+                "tol": 1e-4,
+                "constr_viol_tol": 1e-6,
+                "acceptable_tol": 1e-5,
+                "dual_inf_tol": 1e-6,
+                "compl_inf_tol": 1e-6,
+                "max_iter": 50000,
+            }
         }
-    }
     # Solver
     solver = casadi.nlpsol('sol', 'ipopt', prob, opts)
 
@@ -796,7 +830,7 @@ def plot_identification(robot, traject, metrics, block = True):
 
 
     rmse = np.sqrt(np.mean(np.sum(delta_tau**2, axis=1))) # RMSE = Sqrt{ 1/M Sum{||e||_2}  }
-    cond_num = metrics['conditioning number']
+    cond_num = metrics.get('conditioning number', None)
     # --- 1. Plot tau ---
     colors = {
         'measured': '#D62728',   # Strong Red
@@ -813,7 +847,11 @@ def plot_identification(robot, traject, metrics, block = True):
     JOINT_NAMES = traject.config['trajectory']['joints']
 
     fig = plt.figure(figsize=(12,8))
-    plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
+    try:
+        plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]}\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
+                    fontsize=16, fontweight='bold')
+    except Exception as e:
+        plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
                 fontsize=16, fontweight='bold')
     for i in range(n):
         plt.subplot(rows, cols,i+1)

@@ -34,4 +34,4 @@ identification:
     CoM: 1e-3      # as CoM std.dev [m]
     inertia: 1e-6  # as Inertia std.dev [Kg/m^2]
 
-    link: [1, 1, 1, 1, 1, 1, 0.01]
+    link: [1, 1, 1, 1, 1, 1, .01]

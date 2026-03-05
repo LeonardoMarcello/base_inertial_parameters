@@ -1,5 +1,5 @@
 robot:
-  path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/ahand_finger_generatedFiles/ahand_finger_par.yaml'
+  path: '/home/leo/Desktop/Base Inertial Parameter/src/config/previous_param_identif/ahand_finger_par.yaml'
 
 trajectory:
   type: 'ros2'

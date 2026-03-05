@@ -58,7 +58,11 @@ class TrajectoryManager:
 
         self.raw_t, idx = np.unique(self.df['t'].to_numpy() - t0, return_index=True)
         self.raw_q = self.df[[col for col in self.df.columns if col.startswith('pos_')]].to_numpy()[idx,:]
-        self.raw_qd = self.df[[col for col in self.df.columns if col.startswith('vel_')]].to_numpy()[idx,:]
+        
+        if self.config['processing'].get('compute_velocities', False):
+            self.raw_qd = np.array([])
+        else:
+            self.raw_qd = self.df[[col for col in self.df.columns if col.startswith('vel_')]].to_numpy()[idx,:]
         self.raw_tau = self.df[[col for col in self.df.columns if col.startswith('eff_')]].to_numpy()[idx,:]
 
         # Sampling info and backups of original (pre-filter) signals
@@ -102,12 +106,6 @@ class TrajectoryManager:
         qdd_log = qdd_filt
 
         # 4) Filter commanded torques/efforts with same filter (zero-phase)
-        #q_filt = filtfilt(b, a, q_log, axis=0, padtype="odd", padlen=3 * (max(len(b), len(a)) - 1))
-        #q_log = q_filt
-        #qd_filt = filtfilt(b, a, qd_log, axis=0, padtype="odd", padlen=3 * (max(len(b), len(a)) - 1))
-        #qd_log = qd_filt
-        #qdd_filt = filtfilt(b, a, qdd_log, axis=0, padtype="odd", padlen=3 * (max(len(b), len(a)) - 1))
-        #qdd_log = qdd_filt
         tau_filt = filtfilt(b, a, tau_log, axis=0, padtype="odd", padlen=3 * (max(len(b), len(a)) - 1))
         tau_log = tau_filt
 

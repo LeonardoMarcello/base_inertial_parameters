@@ -79,3 +79,70 @@ def casadi_skew(v):
          casadi.horzcat(v[2], 0, -v[0]),
          casadi.horzcat(-v[1], v[0], 0)
      )
+
+# Dynamic matrices
+def dyn2reg(par_DYN, par_per_link = 10):
+    par_REG = []
+    for i in range(par_DYN.shape[0]//par_per_link):
+        # Slice parameters for the current joint
+        start_idx = par_per_link * i
+        end_idx = par_per_link * (i + 1)
+        p_dyn = par_DYN[start_idx:end_idx]
+        # 1. Mass
+        mass = p_dyn[0]
+
+        # 2. First moment of mass (mass * Center of Mass)
+        mCoM = mass * p_dyn[1:4]
+
+        # 3. Inertia Tensor shift using Parallel Axis Theorem
+        S = casadi_skew(mCoM)
+        I_tmp = casadi.mtimes(S.T, S) / mass
+
+        I_dyn = p_dyn[4:10]
+        I_tmp_v = casadi.vertcat(
+            I_tmp[0, 0], I_tmp[0, 1], I_tmp[0, 2],
+                         I_tmp[1, 1], I_tmp[1, 2],
+                                      I_tmp[2, 2]
+        )
+
+        I = I_dyn + I_tmp_v
+        # Concatenate [mass, mCoM, I] for this joint
+        par_REG.append(casadi.vertcat(mass, mCoM, I))
+    # Stack all joints into a single vector
+    par_REG = casadi.vertcat(*par_REG)
+    return par_REG
+
+def reg2dyn(par_REG, par_per_link = 10):
+    par_DYN = []
+    for i in range(par_REG.shape[0]//par_per_link):
+        # Slice parameters for the current joint
+        start_idx = par_per_link * i
+        end_idx = par_per_link * (i + 1)
+        p_reg = par_REG[start_idx:end_idx]
+
+        # 1. Mass
+        mass = p_reg[0]
+
+        # 2. Center of Mass (First moment of mass / mass)
+        CoM = p_reg[1:4] / mass
+
+        # 3. Inertia Tensor shift (Reverse Parallel Axis Theorem)
+        S = casadi_skew(CoM)
+        I_tmp = mass * casadi.mtimes(S.T, S)
+
+        I_reg = p_reg[4:10]
+        I_tmp_v = casadi.vertcat(
+            I_tmp[0, 0], I_tmp[0, 1], I_tmp[0, 2],
+                         I_tmp[1, 1], I_tmp[1, 2],
+                                      I_tmp[2, 2]
+        )
+
+        # Subtract the shift term to move inertia from origin back to CoM
+        I = I_reg - I_tmp_v
+
+        # Concatenate [mass, CoM, I] for this joint
+        par_DYN.append(casadi.vertcat(mass, CoM, I))
+
+    # Stack all joints into a single vector
+    par_DYN = casadi.vertcat(*par_DYN)
+    return par_DYN

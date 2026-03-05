@@ -11,7 +11,7 @@ class Identifier():
         self._load_config(config_path)
 
         self.trajectory = None
-        self.metrics = None
+        self.metrics = {}
 
     def init(self):
         """initialize trajectory"""
@@ -51,16 +51,20 @@ class Identifier():
             hat_par_REG_red, metrics = solve_OLS_with_prior(self.robot, self.trajectory, conditioning_ratio = conditioning_ratio)
         elif method == 'WLS|prior':
             hat_par_REG_red, metrics = solve_WLS_with_prior(self.robot, self.trajectory, conditioning_ratio = conditioning_ratio)
+        metrics['method'] = method
+
         # Set estimation
         n = self.robot.numJoints
+
         hat_pi_REG_red = hat_par_REG_red[:-n*(self.robot.Dl_order)]
-        hat_pi_dl = hat_par_REG_red[-n*(self.robot.Dl_order):]
         self.robot.set_par_REG_red(hat_pi_REG_red)
+
+        hat_pi_dl = hat_par_REG_red[-n*(self.robot.Dl_order):]
         self.robot.set_par_Dl(hat_pi_dl)
 
         self.metrics = metrics
 
-    def solve_full_dynamics(self):
+    def solve_full_dynamics(self, opts = None):
         """solve and store the full identfied robot dynamics model in the following fields:
              - robot.get_par_REG()
              - robot.get_par_DYN()
@@ -69,7 +73,7 @@ class Identifier():
         """
         # Define and Solve Full dynamics
         print(">> Full inertial Parameters Estimation")
-        sol = solve_dynamics(self.robot, self.config, sigma_pi = self.metrics['parameters covariance matrix'])
+        sol = solve_dynamics(self.robot, self.config, sigma_pi = self.metrics['parameters covariance matrix'], opts=opts)
         results = sol[-1]
         # Assign estimation
         self.robot.set_par_REG(sol[0])
@@ -82,6 +86,95 @@ class Identifier():
         self.robot.set_par_REG_red(self.robot.get_reg2red())
 
         return results
+    
+    def save_plot(self, block = False, path = None):
+        """export results in thunder dynamics config yaml file"""
+        # 1. Define and create the results directory
+        if path is None:
+            date_str = datetime.datetime.now().strftime("%d_%m_%Y")
+            results_dir = f"results/data_{date_str}"
+        else:
+            results_dir = path
+
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir)
+
+
+        fig_q, fig_qd, fig_qdd, fig_tau = self.trajectory.plot_traject(self.robot, block=False)
+        fig_identif = plot_identification(self.robot, self.trajectory, self.metrics, block = block)
+
+        # save traject
+        fig_q.savefig(os.path.join(results_dir, 'q.png'), bbox_inches='tight', dpi=300)
+        fig_qd.savefig(os.path.join(results_dir, 'qd.png'), bbox_inches='tight', dpi=300)
+        fig_qdd.savefig(os.path.join(results_dir, 'qdd.png'), bbox_inches='tight', dpi=300)
+        fig_tau.savefig(os.path.join(results_dir, 'tau.png'), bbox_inches='tight', dpi=300)
+        # save identification results
+        fig_identif.savefig(os.path.join(results_dir, 'identification_result.png'), bbox_inches='tight', dpi=300)
+
+        print(f"Plot stored in in '{results_dir}'")
+    
+    def print_table(self, format = 'plain'):
+        """ Print Table of Dynamic parameters """
+        np.set_printoptions(precision=4, suppress=True, linewidth=200)
+        if hasattr(self.robot, "get_par_Ia"):
+            par_per_link = 11
+        else:
+            par_per_link = 10
+        n = self.robot.numJoints
+        headers = ["m", "cx", "cy", "cz", "ixx", "ixy", "ixz", "iyy", "iyz", "izz",'Ia']
+        headers = headers[:par_per_link]
+
+
+        if format.lower() == 'latex':
+            # 1) Optimized params
+            if par_per_link == 11:
+                params = np.hstack([self.robot.get_par_DYN().reshape(n,10), self.robot.get_par_Ia().reshape(n,1)]).reshape(n, 11)
+            else:
+                params = self.robot.get_par_DYN().reshape((n, 10))
+            title = "Optimized parameters"
+            col_format = "c|" + "r" * len(headers)
+            print(r"\begin{table}[htpb]")
+            print(r"\centering")
+            print(rf"\caption{{{title}}}")
+            # Requires \usepackage{graphicx} in your LaTeX preamble
+            print(r"\resizebox{\textwidth}{!}{%")
+            print(rf"\begin{{tabular}}{{{col_format}}}")
+            print(r"\hline")
+
+            # Print Headers
+            header_str = "Link & " + " & ".join([f"${h}$" for h in headers]) + r" \\ \hline"
+            print(header_str)
+
+            # Print Rows
+            for i, row in enumerate(params):
+                row_strs = []
+                for val in row:
+                    # Convert to LaTeX scientific notation (e.g. 1.23e-04 -> $1.23 \times 10^{-4}$)
+                    val_e = f"{val:.6e}"
+                    base, exp = val_e.split('e')
+                    exp_int = int(exp) # Removes leading zeros from exponent
+                    row_strs.append(f"${base} \\times 10^{{{exp_int}}}$")
+                print(f"{i} & " + " & ".join(row_strs) + r" \\")
+            print(r"\hline")
+            print(r"\end{tabular}%")
+            print(r"}")
+            print(r"\end{table}")
+            print() # Add spacing between tables
+        else:
+            # 1) Optimized params
+            print(f"Optimized parameters")
+            if par_per_link == 11:
+                params = np.hstack([self.robot.get_par_DYN().reshape(n,10), self.robot.get_par_Ia().reshape(n,1)]).reshape(n, 11)
+            else:
+                params = self.robot.get_par_DYN().reshape((n, 10))
+            # Print header
+            header_str = f"{'Link':<6}" + "".join([f"{h:>14}" for h in headers])
+            print(header_str)
+            print("-" * len(header_str))
+            # Print rows
+            for i, row in enumerate(params):
+                row_str = f"{i:<6}" + "".join([f"{val:>14.6e}" for val in row])
+                print(row_str)
 
     def export(self, path = None):
         """export results in thunder dynamics config yaml file"""

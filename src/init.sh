@@ -1,0 +1,1 @@
+ export PYTHONPATH=/home/leo/Desktop/Base\ Inertial\ Parameter/src:$PYTHONPATH

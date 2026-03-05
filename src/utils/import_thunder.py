@@ -22,16 +22,21 @@ try:
 except ImportError as e:
     print(f"Error: Could not import a thunder module. {e}")
 
-
+# 3) Defin some utilities
 def load_params(robot, config_path):
     with open(config_path, 'r') as f:
         config_robot = yaml.safe_load(f)
 
+    # Dynamic parameters
     robot.set_par_DYN(config_robot['par_DYN'])
     robot.set_par_Dl(config_robot['par_Dl'])
     robot.set_par_REG(config_robot['par_REG'])
     robot.set_par_REG_red(config_robot['par_REG_red'])
-    try:
+    if hasattr(robot,"set_par_Ia"):
         robot.set_par_Ia(config_robot['par_Ia'])
-    except:
-        pass
+    # Other parameters
+    if hasattr(robot,"set_par_Ln2EE"):
+        robot.set_par_Ln2EE(config_robot['par_Ln2EE'])
+    # Other parameters
+    if hasattr(robot,"set_par_gravity"):
+        robot.set_par_gravity(config_robot['par_gravity'])
