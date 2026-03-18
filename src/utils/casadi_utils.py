@@ -1,4 +1,8 @@
 
+"""
+Definition of function using CasADi framework
+"""
+
 import casadi
 import numpy as np
 

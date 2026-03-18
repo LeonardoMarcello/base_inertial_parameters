@@ -58,7 +58,7 @@ def print_base_inertial_parameters(robot):
     return description_dict
 
 def get_big_Y_Tau(robot, traject):
-    ## YY oredred for [reg_red, friction]
+    ## YY oredred for [par_reg_red', friction_par']'
     Y_log = []
     for i in range(traject.t.shape[0]):
         q = traject.q[i,:]
@@ -85,10 +85,11 @@ def get_big_Y_Tau(robot, traject):
 
     observable_parameters_mask = [1 for _ in range(YY.shape[1])]
 
-    if np.linalg.matrix_rank(YY)<YY.shape[1]:
+    if np.linalg.matrix_rank(YY) < YY.shape[1]:
         print(f"[WARNING] Matrix is not full colum rank {np.linalg.matrix_rank(YY)}/{YY.shape[1]} - the solution is not unique" )
         for i in range(YY.shape[1]):
             if np.linalg.norm(YY[:,i]) < 1e-10:
+                # Check for zero-column
                 print(f"parameters {i} of the base is non-observable")
                 observable_parameters_mask[i] = 0
 
@@ -97,8 +98,10 @@ def get_big_Y_Tau(robot, traject):
 def solve_OLS(robot, traject, conditioning_ratio = None):
     # > Compute pi_OLS = (Y.t @ Y)^-1 @ Y.t @ tau
     YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
-    p = YY.shape[1] + 1 # mininum eigenvalue
+    p = YY.shape[1]     # all values
+    r = p
     if conditioning_ratio is not None:
+        Sinv_trunc = np.zeros((p,p))
         U,S,Vh = np.linalg.svd(YY.T @ YY,  compute_uv = True)
         sigma_max = S[0]
         for i in range(1,YY.shape[1]):
@@ -106,12 +109,12 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
             cond = np.sqrt(sigma_max/sigma_p)
             if cond > conditioning_ratio:
                 print(f"OLS: From now on (index {i}), high ill-conditioning")
-                p = i
+                r = i
                 break
 
 
-        Sinv_trunc = np.linalg.inv(np.diag(S))
-        Sinv_trunc[p:,p:] = 0
+        Sinv_trunc[:r,:r] = np.diag(1.0 / S[:r])
+        Sinv_trunc[r:,r:] = 0
         pseudo_inv = U @ Sinv_trunc @ Vh
     else:
         pseudo_inv =  np.linalg.pinv(YY.T @ YY)
@@ -128,15 +131,13 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
 
     # std.dev. of residual error
     n = YY.shape[0]
-    p = hat_pi.shape[0]
     sigma_w_2 = np.linalg.norm((TTau - YY@hat_pi),ord=2)**2 / (
-        n - p
+        n - r
     )
     metrics['error standard deviation'] = sigma_w_2
 
     # covariance matrix of estimated parameters
-    C_w = sigma_w_2 * pseudo_inv                # <-- Check
-    # C_w = sigma_w_2 * np.linalg.inv(YY.T@YY)  # <-- Check
+    C_w = sigma_w_2 * pseudo_inv
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
@@ -152,8 +153,10 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     # > Compute pi_OLS = (Y.t @ Y)^-1 @ Y.t @ tau
     hat_pi_ref = np.hstack([robot.get_par_REG_red(), robot.get_par_Dl()]).reshape(-1,1)
     YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
-
+    p = YY.shape[1]     # all values
+    r = p
     if conditioning_ratio is not None:
+        Sinv_trunc = np.zeros((p,p))
         U,S,Vh = np.linalg.svd(YY.T @ YY,  compute_uv = True)
         sigma_max = S[0]
         for i in range(1,YY.shape[1]):
@@ -161,11 +164,11 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
             cond = np.sqrt(sigma_max/sigma_p)
             if cond > conditioning_ratio:
                 print(f"OLS: From now on (index {i}), high ill-conditioning")
-                p = i
+                r = i
                 break
-        S_trunc = np.linalg.inv(np.diag(S))
-        S_trunc[p:,p:] = 0
-        pseudo_inv = U @ S_trunc @ Vh
+        Sinv_trunc[:r,:r] = np.diag(1.0 / S[:r])
+        Sinv_trunc[r:,r:] = 0
+        pseudo_inv = U @ Sinv_trunc @ Vh
     else:
         pseudo_inv =  np.linalg.pinv(YY.T @ YY)
 
@@ -181,9 +184,8 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
 
     # std.dev. of residual error
     n = YY.shape[0]
-    p = hat_pi.shape[0]
     sigma_w_2 = np.linalg.norm((TTau - YY@hat_pi),ord=2)**2 / (
-        n - p
+        n - r
     )
     metrics['error standard deviation'] = sigma_w_2
 
@@ -240,8 +242,9 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
         TTau_weighted[i::robot.numJoints] = W_diag[i]*TTau[i::robot.numJoints]  # apply weight for ith value
 
     # Compute inverted matrix and solution
+    r = p                # index of last singular value
     if conditioning_ratio is not None:
-        r = YY.shape[1] + 1                 # index of last singular value
+        Sinv_trunc = np.zeros((p,p))
         U,S,Vh = np.linalg.svd(YY_weighted.T @ YY_weighted,  compute_uv = True)
         sigma_max = S[0]
         for i in range(1,YY_weighted.shape[1]):
@@ -252,11 +255,12 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
                 r = i
                 break
 
-        S_trunc = np.linalg.inv(np.diag(S))
-        S_trunc[r:,r:] = 0
-        pseudo_inv = U @ S_trunc @ Vh
+        Sinv_trunc[:r,:r] = np.diag(1.0 / S[:r])
+        Sinv_trunc[r:,r:] = 0
+        pseudo_inv = U @ Sinv_trunc @ Vh
     else:
         pseudo_inv = np.linalg.pinv(YY_weighted.T @ YY_weighted)
+
     hat_pi = pseudo_inv @ YY_weighted.T @ TTau_weighted
 
     # > Compute metrics
@@ -269,15 +273,13 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
 
     # std.dev. of residual error
     n = YY.shape[0]
-    p = hat_pi.shape[0]
     sigma_w_2 = np.linalg.norm((TTau_weighted - YY_weighted@hat_pi),ord=2)**2 / (
-        n - p
+        n - r
     )
     metrics['error standard deviation'] = sigma_w_2
 
     # covariance matrix of estimated parameters
-    C_w = sigma_w_2 * pseudo_inv                # <-- Check
-    # C_w = sigma_w_2 * np.linalg.inv(YY.T@YY)  # <-- Check
+    C_w = sigma_w_2 * pseudo_inv
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
@@ -310,7 +312,6 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
 
     residual = TTau - YY @ hat_pi
     for i in range(robot.numJoints):
-
         # std.dev for joint i-th measuerements using OLS residuals
         diff = residual[i::robot.numJoints]
         denom = nb_samples - p
@@ -328,8 +329,9 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
         TTau_weighted[i::robot.numJoints] = W_diag[i]*TTau[i::robot.numJoints]  # apply weight for ith value
 
     # Compute inverted matrix and solution
+    r = p                 # num of parameters
     if conditioning_ratio is not None:
-        r = YY.shape[1] + 1                 # num of parameters
+        Sinv_trunc = np.zeros((p,p))
         U,S,Vh = np.linalg.svd(YY_weighted.T @ YY_weighted,  compute_uv = True)
         sigma_max = S[0]
         for i in range(YY_weighted.shape[1]):
@@ -339,12 +341,11 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
                 print(f"WLS: From now on (index {i}), high ill-conditioning")
                 r = i
                 break
-
-        S_trunc = np.linalg.inv(np.diag(S))
-        S_trunc[r:,r:] = 0
-        pseudo_inv = U @ S_trunc @ Vh
+        Sinv_trunc[:r,:r] = np.diag(1.0 / S[:r])
+        Sinv_trunc[r:,r:] = 0
+        pseudo_inv = U @ Sinv_trunc @ Vh
     else:
-        pseudo_inv =  np.linalg.pinv(YY.T @ YY)
+        pseudo_inv = np.linalg.pinv(YY_weighted.T @ YY_weighted)
     hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
 
     # > Compute metrics
@@ -357,15 +358,13 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
 
     # std.dev. of residual error
     n = YY.shape[0]
-    p = hat_pi.shape[0]
     sigma_w_2 = np.linalg.norm((TTau_weighted - YY_weighted@hat_pi),ord=2)**2 / (
-        n - p
+        n - r
     )
     metrics['error standard deviation'] = sigma_w_2
 
     # covariance matrix of estimated parameters
-    C_w = sigma_w_2 * pseudo_inv                # <-- Check
-    # C_w = sigma_w_2 * np.linalg.inv(YY.T@YY)  # <-- Check
+    C_w = sigma_w_2 * pseudo_inv
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
@@ -376,42 +375,6 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
 
     return hat_pi, metrics
 
-
-
-# def get_metrics(robot, traject, hat_pi = None, hat_pi_essential = None, idx_essental = None):
-#     YY, TTau = get_big_Y_Tau(robot, traject)
-#     metrics = {}
-#     metrics['conditioning number'] = np.linalg.cond(YY)
-
-#     if hat_pi is None and hat_pi_essential is None:
-#         # Ordinary Leat Square solution
-#         hat_pi = np.linalg.pinv(YY) @ TTau
-#     elif hat_pi is None and hat_pi_essential is not None:
-#         hat_pi = hat_pi_essential
-#         YY = YY[:,idx_essental]
-
-#     residual = TTau - YY @ hat_pi
-#     metrics['residual'] = np.linalg.norm(residual)
-
-#     # std.dev. of residual error
-#     n = YY.shape[0]
-#     p = hat_pi.shape[0]
-#     sigma_w_2 = np.linalg.norm((TTau - YY@hat_pi),ord=2)**2 / (
-#         n - p
-#     )
-#     metrics['error standard deviation'] = sigma_w_2
-
-#     # covariance matrix of estimated parameters
-#     C_w = sigma_w_2 * np.linalg.inv(YY.T@YY)
-#     metrics['parameters covariance matrix'] = C_w
-
-#     # relative std.dev. of estimated parameters
-#     sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
-#     sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
-#     metrics['parameters standard deviation'] = sigma_pi
-#     metrics['parameters relative standard deviation'] = sigma_pi_perc
-
-#     return metrics
 
 def compute_essential(robot, traject, ratio_essential = 30):
     #
@@ -480,6 +443,7 @@ def compute_SVD_essential(robot, traject, conditioning_ratio = 50):
 def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = False, path = None):
     # robot.set_par_REG_red(...) must be called before to set proper estimated base inertial parameters
     POSITIVE_THRESH = float(config['identification'].get('positive_threshold',1e-16))
+    INERTIA_SCALE_FACTOR = float(config['identification'].get('inertia_scale_factor',1))
 
     FULL_DYN_PARAM_INITIAL_GUESS = {}
     FULL_DYN_PARAM_INITIAL_GUESS['mass']  = robot.get_par_DYN()[0::10].copy()
@@ -561,11 +525,11 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         #Ib = Ib_reg - m @casadi_skew(c).T @ casadi_skew(c)
 
         # !Criterio Sylvestr: det sottomatrici!
-        d[i,0] = 1e6*det(Ib[:3,:3])
-        d[i,1] = 1e6*det(Ib[:2,:2])
-        d[i,2] = 1e6*det(Ib[:1,:1])
-        d[i,3] = 1e6*det(Ib[2,2])
-        d[i,4] = 1e6*det(Ib[1,1])
+        d[i,0] = det(INERTIA_SCALE_FACTOR*Ib[:3,:3])
+        d[i,1] = det(INERTIA_SCALE_FACTOR*Ib[:2,:2])
+        d[i,2] = det(INERTIA_SCALE_FACTOR*Ib[:1,:1])
+        d[i,3] = det(INERTIA_SCALE_FACTOR*Ib[2,2])
+        d[i,4] = det(INERTIA_SCALE_FACTOR*Ib[1,1])
         g +=  [d[i,0],              d[i,1],                 d[i,2], d[i,3], d[i,4]]
         lb += [POSITIVE_THRESH,     POSITIVE_THRESH,        POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
         ub += [casadi.inf,          casadi.inf,             casadi.inf, casadi.inf, casadi.inf]
@@ -587,13 +551,13 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
     # Define Optim Cost
     config_ident = config['identification']
-    w_loss    = float(config_ident['weight']['loss'])               # Pull toward base parameters
-    w_mass    = float(config_ident['weight']['mass'])               # Pull toward URDF mass
-    w_com     = float(config_ident['weight']['CoM'])                # Pull toward URDF CoM
-    w_inertia = float(config_ident['weight']['inertia'])            # Pull toward URDF inertia
-    w_link = np.array(config_ident['weight']['link'], dtype=float)   # wheight link differently
+    w_loss    = float(config_ident['weight']['loss'])                # Pull toward base parameters
+    w_mass    = float(config_ident['weight']['mass'])                # Pull toward URDF mass
+    w_com     = float(config_ident['weight']['CoM'])                 # Pull toward URDF CoM
+    w_inertia = float(config_ident['weight']['inertia'])             # Pull toward URDF inertia
+    w_link = np.array(config_ident['weight']['link'], dtype=float)   # Weight link differently
     if len(w_link)!=n:
-        print("[WARN] The lenght of link weight is bad setted. proceding with equal weighting for each link")
+        print("[WARN] The lenght of link weight is ill-setted. proceding with equal weighting for each link")
         w_link = [1 for _ in range(n)]
     w_link = w_link/np.sum(w_link)
 
@@ -785,6 +749,18 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
 
 def plot_identification(robot, traject, metrics, block = True):
+    """
+    Plot of the reconstructed dynamic
+
+    Args:
+        robot (_type_): _description_
+        traject (_type_): _description_
+        metrics (_type_): _description_
+        block (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
     tau_M = []
     tau_C = []
     tau_G = []
@@ -892,6 +868,18 @@ def plot_identification(robot, traject, metrics, block = True):
     return fig
 
 def plot_LS_solution(hat_pi, metrics, pi_gt = None, block = True):
+    """
+    Box Plot representation for visualization of estimated base parameters 
+
+    Args:
+        hat_pi (_type_): _description_
+        metrics (_type_): _description_
+        pi_gt (_type_, optional): _description_. Defaults to None.
+        block (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
     # Create an array of indices for the x-axis
     x = np.arange(len(hat_pi))
 

@@ -116,7 +116,9 @@ def plot_eval_LS_solution(hat_pi, metrics, robot_gt = None, block = True):
 
 
 def plot_table(robot, robot_ground_truth, format = 'plain'):
-    """ Print Table of Dynamic parameters """
+    """ 
+    Print Table with the full set of dynamic parameters
+    """
     np.set_printoptions(precision=4, suppress=True, linewidth=200)
     if hasattr(robot, "get_par_Ia"):
         par_per_link = 11
@@ -289,6 +291,19 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
 
 
 def plot_link_solution(robot, robot_gt, n, title = None, block = True):
+    """
+    Plot estimated dynamic parameters of a single robot link against their ground-truth
+
+    Args:
+        robot (_type_): _description_
+        robot_gt (_type_): _description_
+        n (_type_): _description_
+        title (_type_, optional): _description_. Defaults to None.
+        block (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
     # Ground truth
     m_gt = robot_gt.get_par_DYN()[n*10 + 0]
     com_gt = np.array([robot_gt.get_par_DYN()[n*10 + 1],

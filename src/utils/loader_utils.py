@@ -22,43 +22,54 @@ from utils.casadi_utils import *
 
 
 class TrajectoryManager:
+    """
+    Class for the eas of traject manage
+    add attr routn etc...
+    """
     def __init__(self, config_file, filter_order = 4, cutoff_freq = 30, decimate_factor = 10):
-        self.df = None
-        self.t = None
+
+        self.df = None      # Dataframe with raw measurement
+
+        self.t = None       # Post-Processing measurement arary
         self.tau = None
         self.q = None
         self.qd = None
         self.qdd = None
 
-        self.raw_t = None
+        self.raw_t = None       # Pre-Processing measurement arary
         self.raw_tau = None
         self.raw_q = None
         self.raw_qd = None
         self.raw_qdd = None
 
+
+        # Trajectory configuration dictionary
         self.config = {}
         self._load_config(config_file)
 
+        # Trajectory processing parameters
         self.filter_order = self.config['processing'].get('butterworth_order', filter_order)
         self.cutoff_freq_rad = self.config['processing'].get('cut_off_frequency', cutoff_freq)
         self.decimate_factor = self.config['processing'].get('decimate_factor', decimate_factor)
-        # self.filter_order = filter_order
-        # self.cutoff_freq_rad = cutoff_freq
-        # self.decimate_factor = decimate_factor
+        self.dt = 0        # sampling period [s]
+        self.F_s = 0       # sampling frequency [Hz]
+
         return
 
 
-    def process(self, interval_min=5, interval_max=10000, apply_decimation=True):
+    def process(self):
         # process datafame
-        INTERVAL = [interval_min, interval_max]
+        INTERVAL = self.config['trajectory'].get('interval',(5,10000))
+        apply_decimation = self.config['processing'].get('apply_decimation',True)
 
+        # 1) Get raw data ----------------
         # Align timestamps and select the time window of interest
         t0 = self.df['t'].to_numpy()[0]
         self.df = self.df[(self.df['t'] - t0 >= INTERVAL[0]) & (self.df['t'] - t0 <= INTERVAL[1])]
 
         self.raw_t, idx = np.unique(self.df['t'].to_numpy() - t0, return_index=True)
         self.raw_q = self.df[[col for col in self.df.columns if col.startswith('pos_')]].to_numpy()[idx,:]
-        
+
         if self.config['processing'].get('compute_velocities', False):
             self.raw_qd = np.array([])
         else:
@@ -73,8 +84,8 @@ class TrajectoryManager:
         q_log = self.raw_q.copy()
         qd_log = self.raw_qd.copy()
 
-        dt = np.mean(np.diff(self.raw_t))    # sampling period [s]
-        F_s = 1.0 / dt                  # sampling frequency [Hz]
+        dt = np.mean(np.diff(self.raw_t))   # sampling period [s]
+        F_s = 1.0 / dt                      # sampling frequency [Hz]
 
         # Design Butterworth filter
         # ==========================================================================================================================
@@ -92,7 +103,6 @@ class TrajectoryManager:
         if qd_log.shape != q_log.shape:
             qd_log = np.zeros_like(q_log)
             qd_log[1:-1,:] = (q_log[2:,:] - q_log[:-2,:])/(t_log[2:] - t_log[:-2])[:,None]
-            #qd_log[1:-1,:] = (q_log[2:,:] - q_log[:-2,:])/(2*dt)
 
         qd_filt = filtfilt(b, a, qd_log, axis=0, padtype="odd", padlen=3 * (max(len(b), len(a)) - 1))
         qd_log = qd_filt
@@ -100,7 +110,6 @@ class TrajectoryManager:
         # 3) Estimate acceleration by centered differences on velocities
         qdd_log = np.zeros_like(qd_log)
         qdd_log[1:-1,:] = (qd_log[2:,:] - qd_log[:-2,:])/(t_log[2:] - t_log[:-2])[:,None]
-        #qdd_log[1:-1,:] = (qd_log[2:,:] - qd_log[:-2,:])/(2*dt)
 
         qdd_filt = filtfilt(b, a, qdd_log, axis=0, padtype="odd", padlen=3 * (max(len(b), len(a)) - 1))
         qdd_log = qdd_filt
@@ -136,6 +145,152 @@ class TrajectoryManager:
         self.qd = self.qd[nbord:-nbord,:]
         self.qdd = self.qdd[nbord:-nbord,:]
         self.tau = self.tau[nbord:-nbord,:]
+
+    def process_pipeline(self):
+        """
+         Process raw data using custom pipeline
+        """
+        processed_data = {}
+        self._load_df()
+        
+        processed_data['t'] = self.raw_t.copy()
+        processed_data['tau'] = self.raw_tau.copy()
+        processed_data['q'] = self.raw_q.copy()
+        
+        pipeline = self.config['processing'].get('pipeline',['filtering',
+                                                             'differentiating',
+                                                             'filtering',
+                                                             'differentiating',
+                                                             'filtering',
+                                                             'decimating',])
+        # Processing pipeine
+        for elem in pipeline:
+            if elem=='filtering':
+                processed_data = self._filtering(processed_data)
+            if elem=='decimating':
+                processed_data = self._decimating(processed_data)
+            if elem=='differentiating':
+                processed_data = self._differentiating(processed_data)
+
+        # Store processed data
+        self.t = processed_data['t']
+        self.q = processed_data['q']
+        self.qd = processed_data['dq']
+        self.qdd = processed_data['ddq']
+        self.tau = processed_data['tau']
+
+    def _load_df(self):
+        """
+         Load raw data from already stored dataframe into local variables 
+        """
+        # process datafame
+        INTERVAL = self.config['trajectory'].get('interval', [0,1000])
+
+        # 1) Get raw data ----------------
+        # Align timestamps and select the time window of interest
+        t0 = self.df['t'].to_numpy()[0]
+        self.df = self.df[(self.df['t'] - t0 >= INTERVAL[0]) & (self.df['t'] - t0 <= INTERVAL[1])]
+        # times
+        self.raw_t, idx = np.unique(self.df['t'].to_numpy() - t0, return_index=True)
+        # position
+        self.raw_q = self.df[[col for col in self.df.columns if col.startswith('pos_')]].to_numpy()[idx,:]
+        # velocities
+        if self.config['processing'].get('compute_velocities', False):
+            self.raw_qd = np.array([])
+        else:
+            self.raw_qd = self.df[[col for col in self.df.columns if col.startswith('vel_')]].to_numpy()[idx,:]
+        # effort
+        self.raw_tau = self.df[[col for col in self.df.columns if col.startswith('eff_')]].to_numpy()[idx,:]
+        if self.config['processing'].get('flip_torques', False):
+            self.raw_tau = -self.raw_tau
+
+        self.dt = np.mean(np.diff(self.raw_t))        # sampling period [s]
+        self.F_s = 1.0 / self.dt                      # sampling frequency [Hz]
+
+
+    def _filtering(self, data):
+        """
+         Filter the collected data using a butterworth filter
+        """
+        filtered_data = data.copy()
+
+        # Filter design and numerical differentiation
+        order = self.filter_order
+        nbord = 5 * self.filter_order # used for removing border filtering effect
+        # cutoff_freq in Hz (note original comment: should be ~1.6-6.4 Hz)
+        cutoff_freq = self.cutoff_freq_rad/(2*np.pi)
+        b, a = butter(order, cutoff_freq / (0.5 * self.F_s), btype='low')
+
+        for key, array in data.items():
+            if key != 't':
+                # filtered all elements parsed
+                filtered_data[key] = filtfilt(b, a, array, axis=0, padtype="odd", padlen=3 * (max(len(b), len(a)) - 1))
+            else:
+                filtered_data[key] = array
+            # remove border data
+            filtered_data[key] = filtered_data[key][nbord:-nbord]
+
+        return filtered_data
+
+    def _decimating(self, data):
+        """
+         Decimate available data
+        """
+        decimated_data = data.copy()
+        # 1) Check parsed data
+        # - Check that times are available
+        if 't' not in data.keys():
+            raise KeyError("Decimating Error: Times array must be parsed in data using 't' keys")
+        # - Check data dimensions
+        array_len =  data['t'].shape[0]
+        for key, array in data.items():
+            if array_len !=  array.shape[0]:
+                raise ValueError(f"Decimating Error: '{key}' has a length not compatible with times data")
+
+        # 2) Apply decimation
+        decimated_array_len = math.ceil(array_len/self.decimate_factor)
+        for key, array in data.items():
+            if key!='t':
+                decimated_data[key] = np.zeros((decimated_array_len, array.shape[1]))
+                for i in range(array.shape[1]):
+                    # decimate i-th joints
+                    decimated_data[key][:,i] = decimate(array[:,i], q=self.decimate_factor, zero_phase=True)
+            else:
+                decimated_data['t'] = np.linspace(data['t'][0], data['t'][-1], num = decimated_array_len, endpoint=False)
+
+        # update sampling frequency
+        self.dt = self.dt*self.decimate_factor
+        self.F_s = self.F_s/self.decimate_factor
+
+        return decimated_data
+
+    def _differentiating(self, data):
+        """
+         Finite Central differentiation of available data
+        """
+        differentiated_data = data.copy()
+        # 1) Check parsed data
+        # - Check that times are available
+        if 't' not in data.keys():
+            raise KeyError("Differentiating Error: Times array must be parsed in data using 't' keys")
+        # - Check data dimensions
+        array_len =  data['t'].shape[0]
+        time_array =  data['t']
+        for key, array in data.items():
+            if array_len !=  array.shape[0]:
+                raise ValueError(f"Differentiating Error: '{key}' has a length not compatible with times data")
+
+        # 2) Compute the central finite differentiation
+        for key, array in data.items():
+            if key != 't':
+                differentiated_data[key] = array[1:-1,:]
+                differentiated_data[f"d{key}"] = np.zeros_like(array[1:-1,:])
+                differentiated_data[f"d{key}"] = (array[2:,:] - array[:-2,:])/(time_array[2:] - time_array[:-2])[:,None]
+            else:
+                differentiated_data["t"] = time_array[1:-1]
+        return differentiated_data
+
+
 
     def plot_traject(self, robot, block = True):
         # --- 1. Plot joint trajectories ---
@@ -313,28 +468,45 @@ class TrajectoryManager:
 
     @staticmethod
     def read_csv(csv_folder):
+        """
+        This function allows to read data directly stored in a csv file.
+        Data files must be named with the following syntax:
+        - t_<additional>.csv -> timestamp dataset
+        - q_<additional>.csv -> joints position dataset
+        - dq_<additional>.csv -> joints velocity dataset (optional)
+        - tau_<additional>.csv -> joints effort dataset
+
+
+        Args:
+            csv_folder (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         # Map prefixes to their desired column naming convention
+        # Format: { 'filename_prefix': 'dataframe_column_prefix' }
         prefix_map = {
             'q_': 'pos',
-            'eff_': 'eff',
+            'tau_': 'eff',
             'dq_': 'vel'
         }
         df = None
+
         # 1. Handle the time file
         t_path = os.path.join(csv_folder, 't_identification.csv')
         if os.path.exists(t_path):
             df = pd.read_csv(t_path, names=['t'])
 
-        # 2. Iterate through other files and merge
+        # 2. Iterate through other files and merge in the dataframe
         for filename in os.listdir(csv_folder):
             for prefix, col_label in prefix_map.items():
                 if filename.startswith(prefix) and filename.endswith('.csv'):
                     file_path = os.path.join(csv_folder, filename)
 
-                    # Read the data (assuming no header in CSVs)
-                    temp_df = pd.read_csv(file_path, header=None)
+                    # Read the data
+                    temp_df = pd.read_csv(file_path, header=0)
 
-                    # Rename columns to label_0, label_1, etc.
+                    # Rename columns to proper labelling in the dataframe
                     temp_df.columns = [f"{col_label}_{i}" for i in range(temp_df.shape[1])]
 
                     # Combine with the main dataframe
@@ -342,74 +514,103 @@ class TrajectoryManager:
                         df = pd.concat([df, temp_df], axis=1)
                     else:
                         df = temp_df
-
         return df
 
 
-    @staticmethod
-    def read_bag(file_path, topic_name, joint_names=None):
-        first = True
-        # Open the bag reader
-        reader = rosbag2_py.SequentialReader()
+    # @staticmethod
+    # def read_bag(file_path, topic_name, joint_names=None):
+    #     first = True
+    #     # Open the bag reader
+    #     reader = rosbag2_py.SequentialReader()
 
-        # set options and open the bag
-        storage_options = rosbag2_py.StorageOptions(uri=file_path, storage_id='sqlite3')
-        converter_options = rosbag2_py.ConverterOptions(input_serialization_format='cdr',
-                                                        output_serialization_format='cdr')
-        reader.open(storage_options, converter_options)
+    #     # set options and open the bag
+    #     storage_options = rosbag2_py.StorageOptions(uri=file_path, storage_id='sqlite3')
+    #     converter_options = rosbag2_py.ConverterOptions(input_serialization_format='cdr',
+    #                                                     output_serialization_format='cdr')
+    #     reader.open(storage_options, converter_options)
 
-        dataset = []
-        header = []
-        # scroll the bag
-        while reader.has_next():
-            (topic, data, t) = reader.read_next()
-            if topic == topic_name:
-            #if topic == '/allegroHand_0/torque_cmd':
-                msg = deserialize_message(data, JointState)
-                msg_joint_names = msg.name
+    #     dataset = []
+    #     header = []
+    #     # scroll the bag
+    #     while reader.has_next():
+    #         (topic, data, t) = reader.read_next()
+    #         if topic == topic_name:
+    #         #if topic == '/allegroHand_0/torque_cmd':
+    #             msg = deserialize_message(data, JointState)
+    #             msg_joint_names = msg.name
 
-                # select specific joints
-                indices = [msg_joint_names.index(name) for name in joint_names if name in msg_joint_names]
-                selected_joint_names = [msg_joint_names[i] for i in indices]
-                if first:
-                    msg_joint_names = msg.name
-                    # get header
-                    pos_header    = [f"pos_{name}" for name in selected_joint_names]
-                    effort_header = [f"eff_{name}" for name in selected_joint_names]
-                    vel_header    = [f"vel_{name}" for name in selected_joint_names]
+    #             # select specific joints
+    #             indices = [msg_joint_names.index(name) for name in joint_names if name in msg_joint_names]
+    #             selected_joint_names = [msg_joint_names[i] for i in indices]
+    #             if first:
+    #                 msg_joint_names = msg.name
+    #                 # get header
+    #                 pos_header    = [f"pos_{name}" for name in selected_joint_names]
+    #                 effort_header = [f"eff_{name}" for name in selected_joint_names]
+    #                 vel_header    = [f"vel_{name}" for name in selected_joint_names]
 
-                    header = ['t'] + pos_header + effort_header
-                    if len(msg.velocity) == len(msg.position): 
-                        header += vel_header
-                        print("[INFO] Loading velocities from the topic field header")
-                    else:
-                        print("[INFO] Velocities not found. they will be obtained by central differentiation")
+    #                 header = ['t'] + pos_header + effort_header
+    #                 if len(msg.velocity) == len(msg.position): 
+    #                     header += vel_header
+    #                     print("[INFO] Loading velocities from the topic field header")
+    #                 else:
+    #                     print("[INFO] Velocities not found. they will be obtained by central differentiation")
 
-                    first = False
-                elif msg_joint_names != msg.name:
-                    raise ValueError("Joint names do not match")
+    #                 first = False
+    #             elif msg_joint_names != msg.name:
+    #                 raise ValueError("Joint names do not match")
 
-                # Store data
-                try:
-                    selected_positions = [msg.position[i] for i in indices]
-                    selected_effort = [msg.effort[i] for i in indices]
-                    has_vel = any("vel" in col for col in header)
-                    if has_vel and len(msg.velocity) == len(msg.position):
-                        selected_velocities = [msg.velocity[i] for i in indices]
-                        row = [t/1e9] + selected_positions + selected_effort + selected_velocities
-                    else:
-                        row = [t/1e9] + selected_positions + selected_effort
-                    dataset.append(row)
-                except Exception as e:
-                    print(e)
-                    pass
+    #             # Store data
+    #             try:
+    #                 selected_positions = [msg.position[i] for i in indices]
+    #                 selected_effort = [msg.effort[i] for i in indices]
+    #                 has_vel = any("vel" in col for col in header)
+    #                 if has_vel and len(msg.velocity) == len(msg.position):
+    #                     selected_velocities = [msg.velocity[i] for i in indices]
+    #                     row = [t/1e9] + selected_positions + selected_effort + selected_velocities
+    #                 else:
+    #                     row = [t/1e9] + selected_positions + selected_effort
+    #                 dataset.append(row)
+    #             except Exception as e:
+    #                 print(e)
+    #                 pass
 
-        # store in dataframe
-        return pd.DataFrame(dataset, columns=header)
-
+    #     # store in dataframe
+    #     return pd.DataFrame(dataset, columns=header)
 
 
 
     def _load_config(self, filename):
+        # 1. Load the user's YAML file (the "or {}" prevents crashes if the file is totally empty)
         with open(filename, 'r') as f:
-            self.config = yaml.load(f, Loader=SafeLoader)
+            self.config = yaml.load(f, Loader=SafeLoader) or {}
+        # 2. Define your default fallback template
+        default_template = {
+            'trajectory': {
+                'interval': [0, 1000]   # min and max interval to process [s]
+            },
+            'processing': {
+                'compute_velocities': False,    # wheter compute velocities via finite diff. whan in available raw data
+                'flip_torques': False,          # wheter change sign of torque (e.g. when using franka join states data)
+                'pipeline': [                   # pipeline for data processing
+                    'filtering',
+                    'differentiating',
+                    'filtering',
+                    'differentiating',
+                    'filtering',
+                    'decimating'
+                ],
+                'cut_off_frequency': 30,    # butterworth filter cut-off frequency [rad/s]
+                'butterworth_order': 5,     # butterworth filter order [rad/s]
+                'decimate_factor': 10,      # decimating ratio
+            }
+        }
+        # 3. Safely merge the defaults without overwriting the user's custom choices
+        for section in ['trajectory', 'processing']:
+            # If the entire section is missing, copy the whole default block over
+            if section not in self.config:
+                self.config[section] = default_template[section]
+            else:
+                # If the section exists, check its inner keys to fill in any missing pieces
+                for key, default_value in default_template[section].items():
+                    self.config[section].setdefault(key, default_value)

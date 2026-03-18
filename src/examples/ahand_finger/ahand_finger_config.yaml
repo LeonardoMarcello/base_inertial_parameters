@@ -20,6 +20,7 @@ identification:
   #conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning ( Default: None)
 
   positive_threshold: 1e-8 # positive threshold for constrained problem definition 
+  inertia_scale_factor: 1e6 # scale inertia matrix to ease check on definitive positive costraint
   weight:
     loss: 1 # gain factor for base parameters optimization
 

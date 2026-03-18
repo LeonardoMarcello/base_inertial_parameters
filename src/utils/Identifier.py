@@ -1,5 +1,6 @@
 from utils.loader_utils import *
 from utils.identification_utils import *
+from utils.ros2_utils import *
 
 
 class Identifier():
@@ -22,16 +23,18 @@ class Identifier():
         # Load trajectory manager and data
         self.trajectory = TrajectoryManager(self.config_path)
         if self.config['trajectory']['type'] == 'ros2':
-            self.trajectory.df = TrajectoryManager.read_bag(config_traject['bag'], config_traject['topic'], config_traject['joints'])
+            self.trajectory.df = TrajectoryManagerROS2.read_bag(config_traject['bag'], config_traject['topic'], config_traject['joints'])
         elif self.config['trajectory']['type'] == 'csv':
-            self.trajectory.df = TrajectoryManager.read_csv(config_traject['path'])
+            self.trajectory.df = TrajectoryManager.read_csv(config_traject['data'])
 
         #  process data
-        config_traject_interval = config_traject.get('interval', (5,100))
-        apply_decimation = config_processing.get('apply_decimation', False)
-
-        self.trajectory.process(interval_min=config_traject_interval[0], interval_max=config_traject_interval[1], apply_decimation=apply_decimation)  
-
+        #config_traject_interval = config_traject.get('interval', (5,100))
+        #apply_decimation = config_processing.get('apply_decimation', False)
+        #self.trajectory.process(interval_min=config_traject_interval[0], interval_max=config_traject_interval[1], apply_decimation=apply_decimation)  
+        if self.config['processing'].get('pipeline',False):
+            self.trajectory.process_pipeline()
+        else:
+            self.trajectory.process()
 
     def solve_base_parameter(self):
         """solve and store the identfied base dynamic parameters of the robot in the following fields:

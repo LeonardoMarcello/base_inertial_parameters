@@ -1,14 +1,7 @@
 """
 utilities function for loading trajectory to use in the idientification process.
 """
-
-import os
-
-import numpy as np
-import math
 import pandas as pd
-import yaml
-from yaml.loader import SafeLoader
 
 import rosbag2_py
 from rclpy.serialization import deserialize_message
@@ -17,9 +10,13 @@ from sensor_msgs.msg import JointState
 from utils.loader_utils import *
 
 
-class TrajectoryManagerROS2(TrajectoryManager):
+class TrajectoryManagerROS2(TrajectoryManager):    
+    """
+    Class for the eas of traject manage. It extend Trajectory manager etc...
+    add attr routn etc...
+    """
     def __init__(self, config_file, filter_order = 4, cutoff_freq = 30, decimate_factor = 10):
-        self.super().__init__(config_file, filter_order, cutoff_freq, decimate_factor)
+        super().__init__(config_file, filter_order, cutoff_freq, decimate_factor)
         return
 
     @staticmethod

@@ -39,6 +39,8 @@ thunder.load_params(finger, config['robot']['path'])
 # Setup Identifier Object and Solve Identification Problem ----
 Identifier = Identifier(finger, config_path=config_path)
 Identifier.init()                      # 1_ load and process trajectory
-Identifier.save_plot(block=True,path = "/home/leo/Desktop/Base Inertial Parameter/results/ahand_identification/finger")     # 5_ save plot
 
 
+
+
+Identifier.trajectory.export2csv("/home/leo/Desktop/allegro_hand_ros2_ws/Python/v2/data")

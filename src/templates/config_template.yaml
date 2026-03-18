@@ -1,0 +1,43 @@
+# This is a template for setting up the identification framework
+robot:
+  path: 'path/to/thunder/config/file/par.yaml'
+
+trajectory:
+  type: 'ros2' # 'csv' or 'ros2' loader
+  bag: 'path/to/ros2/bag'     # use for 'ros2' loader
+  topic: '/joint/topic/name'  # use for 'ros2' loader
+  data: '/path/to/csv/dir'    # use for 'csv' loader
+
+  interval: [0, 1000]         # trajectory time interval for data selection [s]
+  joints: ['joint1_name', 'joint2_name', '...', 'jointN_name']  # names of robot joint
+
+
+processing:
+  pipeline:   # Which pipeline apply for data processing ['filtering','differentiating','decimating'] 
+    - 'filtering'
+    - 'differentiating'
+    - 'filtering'
+    - 'differentiating'
+    - 'filtering'
+    - 'decimating'
+  cut_off_frequency: 30   # lowpass filtering cutoff frequency [rad/s]
+  butterworth_order: 5    # butterworth filtering order
+  apply_decimation: true  #
+  decimate_factor: 10     # reduce samples of this many times
+  flip_torques: false     # wheter change joint torce sign (e.g. when using raw Franka Emika Panda)
+
+
+identification:
+  method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior: Base Inertial parameters Estimation Method
+  conditioning_ratio: None # truncate SVD inverse by forcing this conditioning (Default: None)
+
+  positive_threshold: 1e-16   # positive threshold for constrained problem solver (Default: 1e-16)
+  inertia_scale_factor: 1 # scale inertia matrix to ease check on definitive positive costraint  (Default: 1)
+  weight:
+    loss: 1         # gain factor for base parameters optimization (Default: 1)
+    mass: 1e-3      # mass std.dev [Kg]
+    CoM: 1e-3       # CoM std.dev [m]
+    inertia: 1e-6   # Inertia std.dev [Kg/m^2]
+    link: [1, 1, 1, 1, 1, 1, 1] # Link for link prior selection, i.e. multiplier of 1/std.dev. Use 0 to ignore that link
+
+    prior_yaml: "path/to/yaml/with/prior.yaml" # wheter use specific prior (Default: None)

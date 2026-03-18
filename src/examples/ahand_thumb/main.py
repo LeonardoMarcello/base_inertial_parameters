@@ -2,8 +2,6 @@ import utils.import_thunder as thunder
 from utils.Identifier import *
 
 
-import utils.import_thunder as thunder
-
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 opts = {
    "ipopt": {

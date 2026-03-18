@@ -1,0 +1,92 @@
+# This is a template for setting up the extended prior of the robot model
+robot:
+  prior:
+    link1:
+      mass:
+        mu: 4.970684
+        sigma: 10
+
+      CoM_x:
+        mu: 3.875e-3
+        sigma: 10
+      CoM_y:
+        mu: 3.875e-3
+        sigma: 10
+      CoM_z:
+        mu: 3.875e-3
+        sigma: 10
+
+      Ixx:
+        mu: 3.875e-3
+        sigma: 10
+      Iyy:
+        mu: 3.875e-3
+        sigma: 10
+      Izz:
+        mu: 3.875e-3
+        sigma: 10
+      Ixy:
+        mu: 3.875e-3
+        sigma: 10
+      Ixz:
+        mu: 3.875e-3
+        sigma: 10
+      Iyz:
+        mu: 3.875e-3
+        sigma: 10
+
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]
+
+
+      inertia:
+        Ia:
+          mu: 0
+          sigma: 10
+
+    # ...
+
+    linkN:
+      mass:
+        mu: 4.970684
+        sigma: 10
+      CoM_x:
+        mu: 3.875e-3
+        sigma: 10
+      CoM_y:
+        mu: 3.875e-3
+        sigma: 10
+      CoM_z:
+        mu: 3.875e-3
+        sigma: 10
+      Ixx:
+        mu: 3.875e-3
+        sigma: 10
+      Iyy:
+        mu: 3.875e-3
+        sigma: 10
+      Izz:
+        mu: 3.875e-3
+        sigma: 10
+      Ixy:
+        mu: 3.875e-3
+        sigma: 10
+      Ixz:
+        mu: 3.875e-3
+        sigma: 10
+      Iyz:
+        mu: 3.875e-3
+        sigma: 10
+
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]
+
+
+      inertia:
+        Ia:
+          mu: 0
+          sigma: 10
