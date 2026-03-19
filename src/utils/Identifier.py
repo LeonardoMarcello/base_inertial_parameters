@@ -279,10 +279,11 @@ class Identifier():
         if config_ident.get('method') not in valid_methods:
             raise ValueError(f"'identification.method' must be one of {valid_methods}. Got: {config_ident.get('method')}")
 
-        weight = config_ident.get('weight', {})
-        links = weight.get('link', [])
-        if not isinstance(links, list):
-            raise TypeError("'identification.weight.link' must be a list of numbers.")
+        if not config_ident.get('prior', False):
+            weight = config_ident.get('weight', {})
+            links = weight.get('link', [])
+            if not isinstance(links, list):
+                raise TypeError("'identification.weight.link' must be a list of numbers.")
 
         # Cross-validation: Ensure we have a weight for every joint specified
         if len(links) != len(joints):

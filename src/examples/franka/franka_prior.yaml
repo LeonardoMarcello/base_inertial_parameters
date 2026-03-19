@@ -1,0 +1,260 @@
+# This is a template for setting up the extended prior of the robot model
+robot:
+  prior:
+    link1:
+      mass:
+        mu: 4.970684
+        sigma: .04970684
+      CoM_x:
+        mu: 3.875e-3
+        sigma: 3.875e-4
+      CoM_y:
+        mu: 2.081e-3
+        sigma: 2.081e-4
+      CoM_z:
+        mu: -4.762e-2
+        sigma: 4.762e-3
+      Ixx:
+        mu: 7.0337e-1
+        sigma: 7.0337e-2
+      Iyy:
+        mu: 7.0661e-1
+        sigma: 7.0661e-2
+      Izz:
+        mu: 9.1170e-3
+        sigma: 9.1170e-4
+      Ixy:
+        mu: -1.3900e-4
+        sigma: 1.3900e-5
+      Ixz:
+        mu: 6.7720e-3
+        sigma: 6.7720e-4
+      Iyz:
+        mu: 1.9169e-2
+        sigma: 1.9169e-3
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]
+
+    # ------------------------
+    link2:
+      mass:
+        mu: 0.646926
+        sigma: .00646926
+      CoM_x:
+        mu: -3.141e-3
+        sigma: 3.141e-4
+      CoM_y:
+        mu: -2.872e-2
+        sigma: 2.872e-3
+      CoM_z:
+        mu: 3.495e-3
+        sigma: 3.495e-4
+      Ixx:
+        mu: 7.9620e-3
+        sigma: 7.9620e-4
+      Iyy:
+        mu: 2.8110e-02
+        sigma: 2.8110e-03
+      Izz:
+        mu: 2.5995e-02
+        sigma: 2.5995e-03
+      Ixy:
+        mu: -3.9250e-3
+        sigma: 3.9250e-4
+      Ixz:
+        mu: 1.0254e-02
+        sigma: 1.0254e-03
+      Iyz:
+        mu: 7.0400e-04
+        sigma: 7.0400e-05
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]
+
+    # ------------------------
+    link3:
+      mass:
+        mu: 3.228604
+        sigma: .03228604
+      CoM_x:
+        mu: 2.7518e-02
+        sigma: 2.7518e-03
+      CoM_y:
+        mu: 3.9252e-02
+        sigma: 3.9252e-03
+      CoM_z:
+        mu: -6.6502e-02
+        sigma: 6.6502e-03
+      Ixx:
+        mu: 3.7242e-02
+        sigma: 3.7242e-03
+      Iyy:
+        mu: 3.6155e-02
+        sigma: 3.6155e-03
+      Izz:
+        mu: 1.0830e-02
+        sigma: 1.0830e-03
+      Ixy:
+        mu: -4.7610e-03
+        sigma: 4.7610e-04
+      Ixz:
+        mu: -1.1396e-02
+        sigma: 1.1396e-03
+      Iyz:
+        mu: -1.2805e-02
+        sigma: 1.2805e-03
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]
+
+    # ------------------------
+    link4:
+      mass:
+        mu: 3.587895
+        sigma: .03587895
+      CoM_x:
+        mu: -5.317e-02
+        sigma: 5.317e-03
+      CoM_y:
+        mu: 1.04419e-01
+        sigma: 1.04419e-02
+      CoM_z:
+        mu: 2.7454e-02
+        sigma: 2.7454e-03
+      Ixx:
+        mu: 2.5853e-02
+        sigma: 2.5853e-03
+      Iyy:
+        mu: 1.9552e-02
+        sigma: 1.9552e-03
+      Izz:
+        mu: 2.8323e-02
+        sigma: 2.8323e-03
+      Ixy:
+        mu: 7.7960e-03
+        sigma: 7.7960e-04
+      Ixz:
+        mu: -1.3320e-03
+        sigma: 1.3320e-04
+      Iyz:
+        mu: 8.6410e-03
+        sigma: 8.6410e-04
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]
+
+    # ------------------------
+    link5:
+      mass:
+        mu: 1.225946
+        sigma: .01225946
+      CoM_x:
+        mu: -1.1953e-02
+        sigma: 1.1953e-03
+      CoM_y:
+        mu: 4.1065e-02
+        sigma: 4.1065e-03
+      CoM_z:
+        mu: -3.8437e-02
+        sigma: 3.8437e-03
+      Ixx:
+        mu: 3.5549e-02
+        sigma: 3.5549e-03
+      Iyy:
+        mu: 2.9474e-02
+        sigma: 2.9474e-03
+      Izz:
+        mu: 8.6270e-03
+        sigma: 8.6270e-04
+      Ixy:
+        mu: -2.1170e-03
+        sigma: 2.1170e-04
+      Ixz:
+        mu: -4.0370e-03
+        sigma: 4.0370e-04
+      Iyz:
+        mu: 2.2900e-04
+        sigma: 2.2900e-05
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]
+
+    # ------------------------
+    link6:
+      mass:
+        mu: 1.666555
+        sigma: .01666555
+      CoM_x:
+        mu: 6.0149e-02
+        sigma: 6.0149e-03
+      CoM_y:
+        mu: -1.4117e-02
+        sigma: 1.4117e-03
+      CoM_z:
+        mu: -1.0517e-02
+        sigma: 1.0517e-03
+      Ixx:
+        mu: 1.9640e-03
+        sigma: 1.9640e-04
+      Iyy:
+        mu: 4.3540e-03
+        sigma: 4.3540e-04
+      Izz:
+        mu: 5.4330e-03
+        sigma: 5.4330e-04
+      Ixy:
+        mu: 1.0900e-04
+        sigma: 1.0900e-05
+      Ixz:
+        mu: -1.1580e-03
+        sigma: 1.1580e-04
+      Iyz:
+        mu: 3.4100e-04
+        sigma: 3.4100e-05
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]
+
+    # ------------------------
+    link7:
+      mass:
+        mu: 0.735522
+        sigma: .00735522
+      CoM_x:
+        mu: 1.0517e-02
+        sigma: 1.0517e-03
+      CoM_y:
+        mu: -4.252e-03
+        sigma: 4.252e-04
+      CoM_z:
+        mu: -4.5403e-02
+        sigma: 4.5403e-03
+      Ixx:
+        mu: 1.2516e-02
+        sigma: 1.2516e-03
+      Iyy:
+        mu: 1.0027e-02
+        sigma: 1.0027e-03
+      Izz:
+        mu: 4.8150e-03
+        sigma: 4.8150e-04
+      Ixy:
+        mu: -4.2800e-04
+        sigma: 4.2800e-05
+      Ixz:
+        mu: -1.1960e-03
+        sigma: -1.1960e-04
+      Iyz:
+        mu: -7.4100e-04
+        sigma: 7.4100e-05
+      friction:
+        Dl:
+          mu: [0.1, 0.01]
+          sigma: [0.1, 0.01]

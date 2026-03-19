@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 import casadi
 from utils.casadi_utils import *
+from utils.loader_utils import *
 
 
 def print_base_inertial_parameters(robot):
@@ -442,9 +443,12 @@ def compute_SVD_essential(robot, traject, conditioning_ratio = 50):
 
 def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = False, path = None):
     # robot.set_par_REG_red(...) must be called before to set proper estimated base inertial parameters
+
+    # Load solution parameters
     POSITIVE_THRESH = float(config['identification'].get('positive_threshold',1e-16))
     INERTIA_SCALE_FACTOR = float(config['identification'].get('inertia_scale_factor',1))
 
+    # Load dynamic parameters prior from robot
     FULL_DYN_PARAM_INITIAL_GUESS = {}
     FULL_DYN_PARAM_INITIAL_GUESS['mass']  = robot.get_par_DYN()[0::10].copy()
     FULL_DYN_PARAM_INITIAL_GUESS['CoM_x'] = robot.get_par_DYN()[1::10].copy()
@@ -458,6 +462,7 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     FULL_DYN_PARAM_INITIAL_GUESS['Izz']   = robot.get_par_DYN()[9::10].copy()
     if hasattr(robot,"get_par_Ia"):
         par_per_link = robot.STD_PAR_LINK + 1
+        FULL_DYN_PARAM_INITIAL_GUESS['Ia']   = robot.get_par_Ia().copy()
     else:
         par_per_link = robot.STD_PAR_LINK
         print(f"[INFO]: the model used does not include motor inertia" )
@@ -466,11 +471,11 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     n = robot.numJoints
     hat_par_REG_red_star = robot.get_par_REG_red().copy() # Extract reduced estimated base inertial parameters via LS 
 
-    # load init guess regressor
+    # store prior
     hat_par_DYN_0 = np.zeros(n*par_per_link)    # Set initial guess for full regressor parameters 
     hat_par_REG_0 = np.zeros(n*par_per_link)
     for i in range(n):
-        hat_par_DYN_0[i*10] = FULL_DYN_PARAM_INITIAL_GUESS['mass'][i]
+        hat_par_DYN_0[i*10]   = FULL_DYN_PARAM_INITIAL_GUESS['mass'][i]
         hat_par_DYN_0[i*10+1] = FULL_DYN_PARAM_INITIAL_GUESS['CoM_x'][i]
         hat_par_DYN_0[i*10+2] = FULL_DYN_PARAM_INITIAL_GUESS['CoM_y'][i]
         hat_par_DYN_0[i*10+3] = FULL_DYN_PARAM_INITIAL_GUESS['CoM_z'][i]
@@ -480,17 +485,21 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         hat_par_DYN_0[i*10+7] = FULL_DYN_PARAM_INITIAL_GUESS['Iyy'][i]
         hat_par_DYN_0[i*10+8] = FULL_DYN_PARAM_INITIAL_GUESS['Iyz'][i]
         hat_par_DYN_0[i*10+9] = FULL_DYN_PARAM_INITIAL_GUESS['Izz'][i]
+        if par_per_link == 11:
+            hat_par_DYN_0[n*10+i] = FULL_DYN_PARAM_INITIAL_GUESS['Ia'][i]
 
-    # convert CAD parameters into regressor parameters
+
+    # convert CAD parameters into regressor and base parameters
     robot.set_par_DYN(hat_par_DYN_0[:n*10])
     hat_par_REG_0[:len(robot.get_dyn2reg())] = robot.get_dyn2reg()                          # regressor
     if (par_per_link == 11): hat_par_REG_0[len(robot.get_dyn2reg()):] = robot.get_par_Ia()  # motor inertia
 
-    # define optim problem
+    # Define optimization problem CasADi variables
     hat_par_REG_sym = casadi.SX.sym('Pi', n*par_per_link)    # Parameters to estimate (dyn + motor inertia)
-    hat_par_DYN_sym = reg2dyn(hat_par_REG_sym)
+    hat_par_DYN_sym = reg2dyn(hat_par_REG_sym)               # CasADi conversion
 
 
+    # - Feasability Costraint
     g = []          # Constraints
     ub = []         # Upper bound
     lb = []         # Lower bound
@@ -549,122 +558,158 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
             lb += [POSITIVE_THRESH]
             ub += [casadi.inf]
 
-    # Define Optim Cost
-    config_ident = config['identification']
-    w_loss    = float(config_ident['weight']['loss'])                # Pull toward base parameters
-    w_mass    = float(config_ident['weight']['mass'])                # Pull toward URDF mass
-    w_com     = float(config_ident['weight']['CoM'])                 # Pull toward URDF CoM
-    w_inertia = float(config_ident['weight']['inertia'])             # Pull toward URDF inertia
-    w_link = np.array(config_ident['weight']['link'], dtype=float)   # Weight link differently
-    if len(w_link)!=n:
-        print("[WARN] The lenght of link weight is ill-setted. proceding with equal weighting for each link")
-        w_link = [1 for _ in range(n)]
-    w_link = w_link/np.sum(w_link)
-
-    # resid beta
+    # - Define Optimization Cost
+    # -- Residual in the base parameters
+    w_loss = 1
     sigma_pi_inv = 0
-    if sigma_pi is not None and sigma_pi.shape[0] != sigma_pi.shape[1]:
-        # weight with inverse of relative std.dev.
+    if sigma_pi is not None and sigma_pi.shape[0] == sigma_pi.shape[1]:
+        # Use covariance matrix of base parameters
+        W_sigma_inv = np.linalg.pinv(sigma_pi[:-n*2,:-n*2])
+        f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
+    elif sigma_pi is not None and sigma_pi.shape[0] != sigma_pi.shape[1]:
+        # Weight with inverse of relative std.dev. of base parameters
+        print("[WARN] Provided covariance matrix is not squared. Treating as relative std.deviation of base parameters")
         sigma_pi_inv = np.diag(1/sigma_pi[:-n*2].flatten())
         W_sigma_inv = sigma_pi_inv/np.trace(sigma_pi_inv) # sigma_pi is parameters relative std.dev
         f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
-    elif sigma_pi is not None and sigma_pi.shape[0] == sigma_pi.shape[1]:
-        # use covariance matrix
-        W_sigma_inv = np.linalg.pinv(sigma_pi[:-n*2,:-n*2])
-        f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
     else:
-        # do not use weights
+        # Do not use weights of base parameters
+        print("[WARN] No Base parameters covariance matrix is provided. Proceeding with Identity")
         f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
 
-    # additional weights
+    # -- Residual in the dynamic parameters
     f_mass = 0
     f_com = 0
     f_inertia = 0
+    f_additional = 0
 
-    w_mass    = 1/w_mass               # define weight as inverse of std. dev
-    w_com     = 1/w_com
-    w_inertia = 1/w_inertia
+    w_mass    = 1
+    w_com     = 1
+    w_inertia = 1
 
-    for i in range(n):
-        # REG version
-        par_REG_link_i = hat_par_REG_0[10*i:10*(i+1)]
+    config_ident = config['identification']
+    if not config_ident.get('prior_yaml',False):
+        # Reduced definition of uncertainties
+        w_loss    = float(config_ident['weight']['loss'])                # Pull toward base parameters
+        w_mass    = float(config_ident['weight']['mass'])                # Pull toward URDF mass
+        w_com     = float(config_ident['weight']['CoM'])                 # Pull toward URDF CoM
+        w_inertia = float(config_ident['weight']['inertia'])             # Pull toward URDF inertia
+        w_link = np.array(config_ident['weight']['link'], dtype=float)   # Weight link differently
+        if len(w_link)!=n:
+            print("[WARN] The lenght of link weight is ill-setted. proceding with equal weighting for each link")
+            w_link = [1 for _ in range(n)]
+        w_link = w_link/np.sum(w_link)
+        # Computing Sigma inverse
+        w_mass    = 1/w_mass
+        w_com     = 1/w_com
+        w_inertia = 1/w_inertia
 
-        f_mass      +=  w_link[i] @  casadi.sumsqr(hat_par_REG_sym[10*i] - par_REG_link_i[0]) # M
-        f_com       +=  w_link[i] @ (casadi.sumsqr(hat_par_REG_sym[10*i+1]/hat_par_REG_sym[10*i] - par_REG_link_i[1]/par_REG_link_i[0]) + # CX
-                                     casadi.sumsqr(hat_par_REG_sym[10*i+2]/hat_par_REG_sym[10*i] - par_REG_link_i[2]/par_REG_link_i[0]) + # CY
-                                     casadi.sumsqr(hat_par_REG_sym[10*i+3]/hat_par_REG_sym[10*i] - par_REG_link_i[3]/par_REG_link_i[0]))  # CZ
-        f_inertia   +=  w_link[i] @ (casadi.sumsqr(hat_par_REG_sym[10*i+4] - par_REG_link_i[4]) +   # Ixx
-                                     casadi.sumsqr(hat_par_REG_sym[10*i+5] - par_REG_link_i[5]) +   # Ixy
-                                     casadi.sumsqr(hat_par_REG_sym[10*i+6] - par_REG_link_i[6]) +   # Ixz
-                                     casadi.sumsqr(hat_par_REG_sym[10*i+7] - par_REG_link_i[7]) +   # Iyy
-                                     casadi.sumsqr(hat_par_REG_sym[10*i+8] - par_REG_link_i[8]) +   # Iyz
-                                     casadi.sumsqr(hat_par_REG_sym[10*i+9] - par_REG_link_i[9]))    # Izz
-        
-        # # DYN version
-        # par_DYN_link_i = hat_par_DYN_0[10*i:10*(i+1)]
-        # f_mass      +=  w_link[i] @  casadi.sumsqr(hat_par_DYN_sym[10*i]   - par_DYN_link_i[0]) # M
-        # f_com       +=  w_link[i] @ (casadi.sumsqr(hat_par_DYN_sym[10*i+1] - par_DYN_link_i[1]) + # CX
-        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+2] - par_DYN_link_i[2]) + # CY
-        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+3] - par_DYN_link_i[3]))  # CZ
-        # f_inertia   +=  w_link[i] @ (casadi.sumsqr(hat_par_DYN_sym[10*i+4] - par_DYN_link_i[4]) +   # Ixx
-        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+5] - par_DYN_link_i[5]) +   # Ixy
-        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+6] - par_DYN_link_i[6]) +   # Ixz
-        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+7] - par_DYN_link_i[7]) +   # Iyy
-        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+8] - par_DYN_link_i[8]) +   # Iyz
-        #                              casadi.sumsqr(hat_par_DYN_sym[10*i+9] - par_DYN_link_i[9]))    # Izz
+        for i in range(n):
+            # DYN version
+            par_DYN_link_i = hat_par_DYN_0[10*i:10*(i+1)]
 
+            f_mass      +=  (w_link[i]*w_mass) @ casadi.sumsqr(hat_par_DYN_sym[10*i] - par_DYN_link_i[0]) # M
+            f_com       +=  (w_link[i]*w_com) @ (casadi.sumsqr(hat_par_DYN_sym[10*i+1] - par_DYN_link_i[1]) + # CX
+                                                 casadi.sumsqr(hat_par_DYN_sym[10*i+2] - par_DYN_link_i[2]) + # CY
+                                                 casadi.sumsqr(hat_par_DYN_sym[10*i+3] - par_DYN_link_i[3]))  # CZ
+            f_inertia   +=  (w_link[i]*w_inertia) @ (casadi.sumsqr(hat_par_DYN_sym[10*i+4] - par_DYN_link_i[4]) +   # Ixx
+                                                     casadi.sumsqr(hat_par_DYN_sym[10*i+5] - par_DYN_link_i[5]) +   # Ixy
+                                                     casadi.sumsqr(hat_par_DYN_sym[10*i+6] - par_DYN_link_i[6]) +   # Ixz
+                                                     casadi.sumsqr(hat_par_DYN_sym[10*i+7] - par_DYN_link_i[7]) +   # Iyy
+                                                     casadi.sumsqr(hat_par_DYN_sym[10*i+8] - par_DYN_link_i[8]) +   # Iyz
+                                                     casadi.sumsqr(hat_par_DYN_sym[10*i+9] - par_DYN_link_i[9]))    # Izz
+            # REG version
+            # par_REG_link_i = hat_par_REG_0[10*i:10*(i+1)]
 
+            # f_mass      +=  w_link[i] @  casadi.sumsqr(hat_par_REG_sym[10*i] - par_REG_link_i[0]) # M
+            # f_com       +=  w_link[i] @ (casadi.sumsqr(hat_par_REG_sym[10*i+1]/hat_par_REG_sym[10*i] - par_REG_link_i[1]/par_REG_link_i[0]) + # CX
+            #                              casadi.sumsqr(hat_par_REG_sym[10*i+2]/hat_par_REG_sym[10*i] - par_REG_link_i[2]/par_REG_link_i[0]) + # CY
+            #                              casadi.sumsqr(hat_par_REG_sym[10*i+3]/hat_par_REG_sym[10*i] - par_REG_link_i[3]/par_REG_link_i[0]))  # CZ
+            # f_inertia   +=  w_link[i] @ (casadi.sumsqr(hat_par_REG_sym[10*i+4] - par_REG_link_i[4]) +   # Ixx
+            #                              casadi.sumsqr(hat_par_REG_sym[10*i+5] - par_REG_link_i[5]) +   # Ixy
+            #                              casadi.sumsqr(hat_par_REG_sym[10*i+6] - par_REG_link_i[6]) +   # Ixz
+            #                              casadi.sumsqr(hat_par_REG_sym[10*i+7] - par_REG_link_i[7]) +   # Iyy
+            #                              casadi.sumsqr(hat_par_REG_sym[10*i+8] - par_REG_link_i[8]) +   # Iyz
+            #                              casadi.sumsqr(hat_par_REG_sym[10*i+9] - par_REG_link_i[9]))    # Izz
+    else:
+        # Explicit definition of prior uncrtainities
+        prior = load_prior(config_ident['prior_yaml'])
+        for i in range(n):
+            # Load mean and std deviation of i-th link
+            link_i = prior['robot']['prior'][f"link{i+1}"]
+            mu_link_i = [link_i['mass']['mu'],
+                         link_i['CoM_x']['mu'],
+                         link_i['CoM_y']['mu'],
+                         link_i['CoM_z']['mu'],
+                         link_i['Ixx']['mu'],
+                         link_i['Ixy']['mu'],
+                         link_i['Ixz']['mu'],
+                         link_i['Iyy']['mu'],
+                         link_i['Iyz']['mu'],
+                         link_i['Izz']['mu']]
+            sdt_link_i = [link_i['mass']['sigma'],
+                          link_i['CoM_x']['sigma'],
+                          link_i['CoM_y']['sigma'],
+                          link_i['CoM_z']['sigma'],
+                          link_i['Ixx']['sigma'],
+                          link_i['Ixy']['sigma'],
+                          link_i['Ixz']['sigma'],
+                          link_i['Iyy']['sigma'],
+                          link_i['Iyz']['sigma'],
+                          link_i['Izz']['sigma']]
+            f_mass      +=   1/sdt_link_i[0] @ casadi.sumsqr(hat_par_DYN_sym[10*i]   - mu_link_i[0]) # M
+            f_com       +=  (1/sdt_link_i[1] @ casadi.sumsqr(hat_par_DYN_sym[10*i+1] - mu_link_i[1]) + # CX
+                             1/sdt_link_i[2] @ casadi.sumsqr(hat_par_DYN_sym[10*i+2] - mu_link_i[2]) + # CY
+                             1/sdt_link_i[3] @ casadi.sumsqr(hat_par_DYN_sym[10*i+3] - mu_link_i[3]))  # CZ
+            f_inertia   += (1/sdt_link_i[4] @ casadi.sumsqr(hat_par_DYN_sym[10*i+4]  - mu_link_i[4]) +   # Ixx
+                            1/sdt_link_i[5] @ casadi.sumsqr(hat_par_DYN_sym[10*i+5]  - mu_link_i[5]) +   # Ixy
+                            1/sdt_link_i[6] @ casadi.sumsqr(hat_par_DYN_sym[10*i+6]  - mu_link_i[6]) +   # Ixz
+                            1/sdt_link_i[7] @ casadi.sumsqr(hat_par_DYN_sym[10*i+7]  - mu_link_i[7]) +   # Iyy
+                            1/sdt_link_i[8] @ casadi.sumsqr(hat_par_DYN_sym[10*i+8]  - mu_link_i[8]) +   # Iyz
+                            1/sdt_link_i[9] @ casadi.sumsqr(hat_par_DYN_sym[10*i+9]  - mu_link_i[9]))    # Izz
+            # additional
+            if par_per_link == 11 and not link_i.get('motor',False):
+                # motor inertia
+                mu_Ia_i = prior['robot']['prior'][f"link{i+1}"]['motor']['sigma']
+                std_Ia_i = prior['robot']['prior'][f"link{i+1}"]['motor']['sigma']
+                f_additional += 1/std_Ia_i @ casadi.sumsqr(hat_par_DYN_sym[10*n + i]   - mu_Ia_i) # Ia
 
-    # compute weight normalization at 1
-    # k=0
-    # for i in range(n):
-    #     # par_REG_link_i = hat_par_REG_0[10*i:10*(i+1)]
-    #     # W_normalization += W_link[i]*(W_mass/np.power(par_REG_link_i[0],2) + 
-    #     #                               W_com/(np.power(par_REG_link_i[1]/par_REG_link_i[0],2)) +
-    #     #                               W_com/(np.power(par_REG_link_i[2]/par_REG_link_i[0],2)) +
-    #     #                               W_com/(np.power(par_REG_link_i[3]/par_REG_link_i[0],2)) + 
-    #     #                               W_inertia/np.power(par_REG_link_i[4],2) + 
-    #     #                               W_inertia/np.power(par_REG_link_i[5],2) +
-    #     #                               W_inertia/np.power(par_REG_link_i[6],2) +
-    #     #                               W_inertia/np.power(par_REG_link_i[7],2) +
-    #     #                               W_inertia/np.power(par_REG_link_i[8],2) +
-    #     #                               W_inertia/np.power(par_REG_link_i[9],2))
-    #     # k += w_link[i]*(w_mass/(a*a) + 3*w_com*(a*a)/(b*b) + 6*w_inertia/(c*c))
-    #     k += w_link[i]*(w_mass + 3*w_com + 6*w_inertia)
-    # #w_normalization = (1-w_loss)/k
-    w_normalization = 1
-
-    # Problem
+    # - Define Problem
     prob = {}
     prob['x'] = hat_par_REG_sym
     prob['f'] = w_loss* f_loss + (
-                                    w_mass*f_mass +
-                                    w_com*f_com +
-                                    w_inertia*f_inertia
-                                 )/ w_normalization
+                                    f_mass +
+                                    f_com +
+                                    f_inertia + 
+                                    f_additional
+                                 )
     prob['g'] = casadi.vertcat(*g)
 
 
-    # convert cost terms into casadi functions
+    # convert cost terms into CasADi functions
     f_loss_func = casadi.Function('f_loss_func',
                              [hat_par_REG_sym],
                              [w_loss*f_loss],
                              ['params'], ['cost'])
     f_mass_func = casadi.Function('f_mass_func',
                              [hat_par_REG_sym],
-                             [w_mass/w_normalization*f_mass],
+                             [f_mass],
                              ['params'], ['cost'])
     f_com_func = casadi.Function('f_com_func',
                              [hat_par_REG_sym],
-                             [w_com/w_normalization*f_com],
+                             [f_com],
                              ['params'], ['cost'])
     f_inertia_func = casadi.Function('f_inertia_func',
                              [hat_par_REG_sym],
-                             [w_inertia/w_normalization*f_inertia],
+                             [f_inertia],
                              ['params'], ['cost'])
 
+    f_additional_func = casadi.Function('f_additional_func',
+                             [hat_par_REG_sym],
+                             [f_additional],
+                             ['params'], ['cost'])
 
-    # Options
+    # Solver Options
     if opts is None:
         opts = {
             "ipopt": {
@@ -682,13 +727,14 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     sol = solver(x0=hat_par_REG_0, lbg=lb,ubg=ub)
     hat_par_REG_optim = sol['x'].full()
 
-    # Compute residuals
+    # Print residuals
     results = {}
     results['loss'] = f_loss_func(hat_par_REG_optim)
     results['mass'] = f_mass_func(hat_par_REG_optim)
     results['com'] = f_com_func(hat_par_REG_optim)
     results['inertia'] = f_inertia_func(hat_par_REG_optim)
-    print(f"Loss: {results['loss']}, Mass: {results['mass']}, COM: {results['com']}, Inertia: {results['inertia']}")
+    results['additional'] = f_additional_func(hat_par_REG_optim)
+    print(f"Loss: {results['loss']}, Mass: {results['mass']}, Center of Mass: {results['com']}, Tensor inertia: {results['inertia']}, Additional: {results['additional']}")
 
     if export_file:
         # 1. Define and create the results directory
@@ -905,3 +951,17 @@ def plot_LS_solution(hat_pi, metrics, pi_gt = None, block = True):
     plt.tight_layout()
     plt.show(block=block)
     return fig
+
+def load_prior(prior_path):
+    """ load extended prior of the robot """
+    with open(prior_path, 'r') as f:
+        try:
+            prior = yaml.load(f, Loader=SafeLoader)
+        except yaml.YAMLError as e:
+            raise ValueError(f"Error parsing YAML file: {e}")
+
+    # ---  Checks ---
+    if 'robot' not in prior or 'prior' not in prior['robot']:
+        raise KeyError(f"Prior file is not well-formatted")
+
+    return prior

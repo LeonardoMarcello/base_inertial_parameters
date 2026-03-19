@@ -119,6 +119,9 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
     """ 
     Print Table with the full set of dynamic parameters
     """
+    print(f" ------------------")
+    print(f"| Evaluation Table |")
+    print(f" ------------------")
     np.set_printoptions(precision=4, suppress=True, linewidth=200)
     if hasattr(robot, "get_par_Ia"):
         par_per_link = 11
