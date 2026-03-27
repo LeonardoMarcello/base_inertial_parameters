@@ -39,26 +39,28 @@ eigenvalues = casadi.eig_symbolic(sym_matrix)
 
 f_eigen = casadi.Function('eigen', [sym_matrix], [eigenvalues])
 
-_, eigenvalues = def_powerm(sym_matrix)
+_, eigenvalues = def_powerm(sym_matrix, niter=40)
 f_powerm = casadi.Function('powerm', [sym_matrix], [eigenvalues])
 
 
 #minimum eigenvalue
-def minimum(eigen):
+def minimum(eigen, n = 3):
      min = 1e16
-     for i in range(3):
+     for i in range(n):
          min = casadi.if_else(eigen[i] <= min, eigen[i], min)
 
      return min
-def SN(eigen):
-     p = 3
-     l1 = eigen[0]**(-p)
-     l2 = eigen[1]**(-p)
-     l3 = eigen[2]**(-p)
+
+def SN(eigen, p = 3):
+     l1 = (eigen[0])**(-p)
+     l2 = (eigen[1])**(-p)
+     l3 = (eigen[2])**(-p)
      min = (l1 + l2 + l3)**(-1/p)
 
 
      return min
+
+
 def det(A):
      if np.isscalar(A):
          return A

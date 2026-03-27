@@ -83,13 +83,12 @@ class Identifier():
         if hasattr(self.robot,"set_par_Ia"):
             self.robot.set_par_Ia(sol[1])
 
-
         # Convert into dynamic and regressor parameterss
         self.robot.set_par_DYN(self.robot.get_reg2dyn())
         self.robot.set_par_REG_red(self.robot.get_reg2red())
 
         return results
-    
+
     def save_plot(self, block = False, path = None):
         """export results in thunder dynamics config yaml file"""
         # 1. Define and create the results directory
@@ -104,6 +103,7 @@ class Identifier():
 
 
         fig_q, fig_qd, fig_qdd, fig_tau = self.trajectory.plot_traject(self.robot, block=False)
+        fig_identif = plot_base_identification(self.robot, self.trajectory, self.metrics, block = block)
         fig_identif = plot_identification(self.robot, self.trajectory, self.metrics, block = block)
 
         # save traject
@@ -115,7 +115,8 @@ class Identifier():
         fig_identif.savefig(os.path.join(results_dir, 'identification_result.png'), bbox_inches='tight', dpi=300)
 
         print(f"Plot stored in in '{results_dir}'")
-    
+
+
     def print_table(self, format = 'plain'):
         """ Print Table of Dynamic parameters """
         np.set_printoptions(precision=4, suppress=True, linewidth=200)
@@ -279,14 +280,13 @@ class Identifier():
         if config_ident.get('method') not in valid_methods:
             raise ValueError(f"'identification.method' must be one of {valid_methods}. Got: {config_ident.get('method')}")
 
-        if not config_ident.get('prior', False):
+        if not config_ident.get('prior_yaml', False):
             weight = config_ident.get('weight', {})
             links = weight.get('link', [])
             if not isinstance(links, list):
                 raise TypeError("'identification.weight.link' must be a list of numbers.")
-
-        # Cross-validation: Ensure we have a weight for every joint specified
-        if len(links) != len(joints):
-            raise ValueError(f"Mismatch: Found {len(joints)} joints but {len(links)} link weights. They must match.")
+            # Cross-validation: Ensure we have a weight for every joint specified
+            if len(links) != len(joints):
+                raise ValueError(f"Mismatch: Found {len(joints)} joints but {len(links)} link weights. They must match.")
 
         print("[INFO] Configuration loaded and validated successfully!")

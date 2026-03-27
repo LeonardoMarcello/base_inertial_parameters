@@ -1,14 +1,10 @@
 robot:
   path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_par.yaml'
-  #path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_SH_par.yaml' # RMSE =1.0871
 
 trajectory:
   type: 'ros2'
 
-  #bag: './rosbag/computed_torque_60s' # <-- Empty
-  bag: './rosbag/panda_softhand_computed_torque_50s_v3' # <-- Softhand, s_max = 78383417.82606867
-  #bag: './rosbag/softhand_sinusoidal_CT' # <-- Softhand (NEW),           s_max =  4676179.1383352205, ma cond 20x better
-  #bag: './rosbag/softhand_chirp_CT' # <-- Softhand,                     s_max = 41834365.32928588
+  bag: './rosbag/computed_torque_60s' # <-- Empty
 
   topic: '/computed_torque_controller/joint_states'
 
@@ -28,7 +24,6 @@ processing:
   butterworth_order: 5 #5
   apply_decimation: false
   decimate_factor: 10
-  #flip_torques: true
 
 
 identification:
@@ -41,14 +36,16 @@ identification:
   Q: 100              # number of iteration in simmulated annealing
 
 
-  # CasADi optimizer ----
-  positive_threshold: 1e-10 # positive threshold for constrained problem definition
-  inertia_scale_factor: 1
-  weight:
-    loss: 1 # gain factor for base parameters optimization
+  prior_yaml: "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim/franka_prior.yaml" # wheter use specific prior (Default: None)
 
-    mass: 1e-3     # as mass std.dev [Kg]
-    CoM: 1e-3      # as CoM std.dev [m]
-    inertia: 1e-3  # as Inertia std.dev [Kg/m^2]
+  # # CasADi optimizer ----
+  # positive_threshold: 1e-10 # positive threshold for constrained problem definition
+  # inertia_scale_factor: 1
+  # weight:
+  #   loss: 1 # gain factor for base parameters optimization
 
-    link: [1, 1, 1, 1, 1, 1, 1e-2]
+  #   mass: 1e-3     # as mass std.dev [Kg]
+  #   CoM: 1e-3      # as CoM std.dev [m]
+  #   inertia: 1e-3  # as Inertia std.dev [Kg/m^2]
+
+  #   link: [1, 1, 1, 1, 1, 1, 1e-2]

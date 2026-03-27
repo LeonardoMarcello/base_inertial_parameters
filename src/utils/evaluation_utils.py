@@ -373,3 +373,59 @@ def plot_link_solution(robot, robot_gt, n, title = None, block = True):
     plt.tight_layout()
     plt.show(block = block)
     return fig
+
+
+def check_feasibility(robot):
+    par_DYN = robot.get_par_DYN()
+    for i in range(robot.numJoints):
+        par_DYN_link_i = par_DYN[10*i:10*(i+1)]
+        if par_DYN_link_i[0] <= 0: print(f"mass of link {i} is non positive")
+        Ib = np.zeros((3,3))
+        Ib[0,0] = par_DYN_link_i[4]
+        Ib[0,1] = par_DYN_link_i[5]
+        Ib[0,2] = par_DYN_link_i[6]
+        Ib[1,0] = par_DYN_link_i[5]
+        Ib[1,1] = par_DYN_link_i[7]
+        Ib[1,2] = par_DYN_link_i[8]
+        Ib[2,0] = par_DYN_link_i[6]
+        Ib[2,1] = par_DYN_link_i[8]
+        Ib[2,2] = par_DYN_link_i[9]
+
+        # Triangular inequality
+        eig,_ = np.linalg.eig(Ib)
+        l_max = np.max(eig)
+        casadi_eig = f_powerm(Ib)
+        if not (np.trace(Ib)/2 - l_max > 0): 
+            print(f"Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - l_max})")
+            print(f"CasADi - Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - casadi_eig[2]})")
+            print(f"num - eig")
+            print(eig)
+            print(f"CasADi - eig")
+            print(casadi_eig)
+
+        # Determinant Test
+        ds = [det(Ib[:3,:3]), det(Ib[:2,:2]), det(Ib[:1,:1])]
+        for d in ds: 
+            if d <= 0: print(f"Inertia of link {i} do not pass Sylvewster Criterion. (d: {d})")
+
+
+def check_par_feasibility(par_DYN,n):
+    for i in range(n):
+        par_DYN_link_i = par_DYN[10*i:10*(i+1)]
+        if par_DYN_link_i[0] <= 0: print(f"mass of link {i} is non positive")
+        Ib = np.zeros((3,3))
+        Ib[0,0] = par_DYN_link_i[4]
+        Ib[0,1] = par_DYN_link_i[5]
+        Ib[0,2] = par_DYN_link_i[6]
+        Ib[1,0] = par_DYN_link_i[5]
+        Ib[1,1] = par_DYN_link_i[7]
+        Ib[1,2] = par_DYN_link_i[8]
+        Ib[2,0] = par_DYN_link_i[6]
+        Ib[2,1] = par_DYN_link_i[8]
+        Ib[2,2] = par_DYN_link_i[9]
+
+        # Triangular inequality
+        eig,_ = np.linalg.eig(Ib)
+        l_max = np.max(eig)
+        if not (np.trace(Ib)/2 - l_max > 0): 
+            print(f"Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - l_max})")

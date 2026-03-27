@@ -1,6 +1,6 @@
 robot:
   path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_par.yaml'
-  #path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_SH_par.yaml' # RMSE =1.0871
+  #path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_SH_par.yaml' 
 
 trajectory:
   type: 'ros2'
@@ -28,7 +28,6 @@ processing:
   butterworth_order: 5 #5
   apply_decimation: false
   decimate_factor: 10
-  #flip_torques: true
 
 
 identification:
@@ -42,8 +41,10 @@ identification:
 
 
   # CasADi optimizer ----
-  positive_threshold: 1e-10 # positive threshold for constrained problem definition
-  inertia_scale_factor: 1
+  # positive_threshold: 1e-10 # positive threshold for constrained problem definition
+  # inertia_scale_factor: 1
+
+
   weight:
     loss: 1 # gain factor for base parameters optimization
 

@@ -17,7 +17,7 @@ from utils.loader_utils import *
 def print_base_inertial_parameters(robot):
     param_names = ['M','MX','MY','MZ','XX','XY','XZ','YY','YZ','ZZ','Ia']
 
-    beta = robot.get_beta()
+    beta = np.round(robot.get_beta(), 16)
     n = robot.numJoints
     parPerLink = robot.STD_PAR_LINK
     description = ""
@@ -335,6 +335,7 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
         Sinv_trunc = np.zeros((p,p))
         U,S,Vh = np.linalg.svd(YY_weighted.T @ YY_weighted,  compute_uv = True)
         sigma_max = S[0]
+        print(sigma_max)
         for i in range(YY_weighted.shape[1]):
             sigma_p = S[i]
             cond = np.sqrt(sigma_max/sigma_p)
@@ -446,7 +447,7 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
     # Load solution parameters
     POSITIVE_THRESH = float(config['identification'].get('positive_threshold',1e-16))
-    INERTIA_SCALE_FACTOR = float(config['identification'].get('inertia_scale_factor',1))
+    INERTIA_SCALE_FACTOR = float(config['identification'].get('inertia_scale_factor', 1))
 
     # Load dynamic parameters prior from robot
     FULL_DYN_PARAM_INITIAL_GUESS = {}
@@ -500,17 +501,21 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
 
     # - Feasability Costraint
+    penalty_costraint = 0
     g = []          # Constraints
     ub = []         # Upper bound
     lb = []         # Lower bound
-    d = casadi.SX(n,5)
+    d = casadi.SX(n,5)           # determinant
+    tr = casadi.SX(n,1)          # trace
+    l_max = casadi.SX(n,1)       # max_eigen
+    eig = casadi.SX(n,3)       # all_eigen
     for i in range(n):
         m = hat_par_DYN_sym[i*10]                     # mass
 
         # Mass must be positive
         g += [m]             # [Kg]
         lb += [1e-3]
-        ub += [casadi.inf]
+        ub += [5]
 
         # Center of mass
         c = casadi.SX(3,1)
@@ -520,36 +525,69 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
         # positive definite inertia matrix
         Ib = casadi.SX(3,3)
-        Ib[0,0] = hat_par_DYN_sym[i*10 + 4]
-        Ib[0,1] = hat_par_DYN_sym[i*10 + 5]
-        Ib[0,2] = hat_par_DYN_sym[i*10 + 6]
-        Ib[1,0] = hat_par_DYN_sym[i*10 + 5]
-        Ib[1,1] = hat_par_DYN_sym[i*10 + 7]
-        Ib[1,2] = hat_par_DYN_sym[i*10 + 8]
-        Ib[2,0] = hat_par_DYN_sym[i*10 + 6]
-        Ib[2,1] = hat_par_DYN_sym[i*10 + 8]
-        Ib[2,2] = hat_par_DYN_sym[i*10 + 9]
+        Ib[0,0] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 4]
+        Ib[0,1] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 5]
+        Ib[0,2] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 6]
+        Ib[1,0] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 5]
+        Ib[1,1] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 7]
+        Ib[1,2] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 8]
+        Ib[2,0] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 6]
+        Ib[2,1] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 8]
+        Ib[2,2] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 9]
 
 
         #Ib = Ib_reg - m @casadi_skew(c).T @ casadi_skew(c)
 
-        # !Criterio Sylvestr: det sottomatrici!
-        d[i,0] = det(INERTIA_SCALE_FACTOR*Ib[:3,:3])
-        d[i,1] = det(INERTIA_SCALE_FACTOR*Ib[:2,:2])
-        d[i,2] = det(INERTIA_SCALE_FACTOR*Ib[:1,:1])
-        d[i,3] = det(INERTIA_SCALE_FACTOR*Ib[2,2])
-        d[i,4] = det(INERTIA_SCALE_FACTOR*Ib[1,1])
-        g +=  [d[i,0],              d[i,1],                 d[i,2], d[i,3], d[i,4]]
-        lb += [POSITIVE_THRESH,     POSITIVE_THRESH,        POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
-        ub += [casadi.inf,          casadi.inf,             casadi.inf, casadi.inf, casadi.inf]
+        # !Criterio Sylvestr: det sottomatrici! ------
+        d[i,0] = det(Ib[:3,:3])
+        d[i,1] = det(Ib[:2,:2])
+        d[i,2] = det(Ib[:1,:1])
+        d[i,3] = det(Ib[2,2])
+        d[i,4] = det(Ib[1,1])
 
-        # Triangular inequalities
-        Ib[0,0] + Ib[1,1] - Ib[2,2]
-        Ib[0,0] + Ib[1,1] - Ib[2,2]
-        Ib[0,0] + Ib[1,1] - Ib[2,2]
-        g +=  [Ib[0,0] + Ib[1,1] - Ib[2,2],             Ib[0,0] + Ib[2,2] - Ib[1,1],                 Ib[2,2] + Ib[1,1] - Ib[0,0]]
-        lb += [POSITIVE_THRESH,                                 POSITIVE_THRESH,                             POSITIVE_THRESH]
+        # g +=  [d[i,0],              d[i,1],                 d[i,2], d[i,3], d[i,4]]
+        # lb += [POSITIVE_THRESH,     POSITIVE_THRESH,        POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
+        # ub += [casadi.inf,          casadi.inf,             casadi.inf, casadi.inf, casadi.inf]
+
+        # g +=  [d[i,2], d[i,3], d[i,4]]
+        # lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
+        # ub += [casadi.inf, casadi.inf, casadi.inf]
+
+        # Triangular inequalities ------
+        #Ixx + Iyy - Izz > 0
+        #Ixx + Izz - Iyy > 0
+        #Izz + Iyy - Ixx > 0
+        tr = casadi.trace(Ib)
+        l_max = -minimum(-casadi.eig_symbolic(Ib))
+        #eig[i,:] = casadi.eig_symbolic(Ib)
+        eig[i,:] = f_powerm(Ib)
+        #l_max = eig[i,2]
+        #l_max = SN(casadi.eig_symbolic(Ib), 3)
+
+        g +=  [eig[i,0], eig[i,1], eig[i,2]]
+        lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
+        ub += [casadi.inf, casadi.inf, casadi.inf]
+
+        # g +=  [tr - 2*l_max - 0.06]
+        # lb += [POSITIVE_THRESH]
+        # ub += [casadi.inf     ]
+        # g +=  [Ib[0,0] + Ib[1,1] - Ib[2,2],             Ib[0,0] + Ib[2,2] - Ib[1,1],                 Ib[2,2] + Ib[1,1] - Ib[0,0]]
+        # lb += [POSITIVE_THRESH,                                 POSITIVE_THRESH,                             POSITIVE_THRESH]
+        # ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
+        g +=  [eig[i,0] + eig[i,1] - eig[i,2],             eig[i,0] + eig[i,2] - eig[i,1],                 eig[i,2] + eig[i,1] - eig[i,0]]
+        lb += [-POSITIVE_THRESH,                                 -POSITIVE_THRESH,                             -POSITIVE_THRESH]
         ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
+
+
+        # # Generate your v matrix
+        # v_array = _generate_fibonacci_sphere(2000)
+        # for i in range(2000):
+        #     v = v_array[i,:].reshape(-1,1)
+        #     g += [casadi.mtimes(casadi.mtimes(v.T, Ib), v)]
+        #     lb += [POSITIVE_THRESH]
+        #     ub += [casadi.inf]
+        penalty_costraint += -minimum([0, tr/2 - l_max], n=2)
+        #penalty_costraint += -minimum([POSITIVE_THRESH, m ], n=2)
 
         # Positive motor inertias
         if par_per_link > 10:
@@ -562,20 +600,22 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     # -- Residual in the base parameters
     w_loss = 1
     sigma_pi_inv = 0
+    beta = np.round(robot.get_beta(), 16)
+
     if sigma_pi is not None and sigma_pi.shape[0] == sigma_pi.shape[1]:
         # Use covariance matrix of base parameters
         W_sigma_inv = np.linalg.pinv(sigma_pi[:-n*2,:-n*2])
-        f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
+        f_loss = (hat_par_REG_red_star - beta@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - beta@hat_par_REG_sym)
     elif sigma_pi is not None and sigma_pi.shape[0] != sigma_pi.shape[1]:
         # Weight with inverse of relative std.dev. of base parameters
         print("[WARN] Provided covariance matrix is not squared. Treating as relative std.deviation of base parameters")
         sigma_pi_inv = np.diag(1/sigma_pi[:-n*2].flatten())
         W_sigma_inv = sigma_pi_inv/np.trace(sigma_pi_inv) # sigma_pi is parameters relative std.dev
-        f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
+        f_loss = (hat_par_REG_red_star - beta@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - beta@hat_par_REG_sym)
     else:
         # Do not use weights of base parameters
-        print("[WARN] No Base parameters covariance matrix is provided. Proceeding with Identity")
-        f_loss = (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym).T @ (hat_par_REG_red_star - robot.get_beta()@hat_par_REG_sym)
+        print("[WARN] No Base parameters covariance matrix is provided. Proceeding with Identity weighting")
+        f_loss = (hat_par_REG_red_star - beta@hat_par_REG_sym).T @ (hat_par_REG_red_star - beta@hat_par_REG_sym)
 
     # -- Residual in the dynamic parameters
     f_mass = 0
@@ -600,9 +640,9 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
             w_link = [1 for _ in range(n)]
         w_link = w_link/np.sum(w_link)
         # Computing Sigma inverse
-        w_mass    = 1/w_mass
-        w_com     = 1/w_com
-        w_inertia = 1/w_inertia
+        w_mass    = 1/(w_mass*w_mass)
+        w_com     = 1/(w_com*w_com)
+        w_inertia = 1/(w_inertia*w_inertia)
 
         for i in range(n):
             # DYN version
@@ -647,26 +687,26 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
                          link_i['Iyy']['mu'],
                          link_i['Iyz']['mu'],
                          link_i['Izz']['mu']]
-            sdt_link_i = [link_i['mass']['sigma'],
-                          link_i['CoM_x']['sigma'],
-                          link_i['CoM_y']['sigma'],
-                          link_i['CoM_z']['sigma'],
-                          link_i['Ixx']['sigma'],
-                          link_i['Ixy']['sigma'],
-                          link_i['Ixz']['sigma'],
-                          link_i['Iyy']['sigma'],
-                          link_i['Iyz']['sigma'],
-                          link_i['Izz']['sigma']]
-            f_mass      +=   1/sdt_link_i[0] @ casadi.sumsqr(hat_par_DYN_sym[10*i]   - mu_link_i[0]) # M
-            f_com       +=  (1/sdt_link_i[1] @ casadi.sumsqr(hat_par_DYN_sym[10*i+1] - mu_link_i[1]) + # CX
-                             1/sdt_link_i[2] @ casadi.sumsqr(hat_par_DYN_sym[10*i+2] - mu_link_i[2]) + # CY
-                             1/sdt_link_i[3] @ casadi.sumsqr(hat_par_DYN_sym[10*i+3] - mu_link_i[3]))  # CZ
-            f_inertia   += (1/sdt_link_i[4] @ casadi.sumsqr(hat_par_DYN_sym[10*i+4]  - mu_link_i[4]) +   # Ixx
-                            1/sdt_link_i[5] @ casadi.sumsqr(hat_par_DYN_sym[10*i+5]  - mu_link_i[5]) +   # Ixy
-                            1/sdt_link_i[6] @ casadi.sumsqr(hat_par_DYN_sym[10*i+6]  - mu_link_i[6]) +   # Ixz
-                            1/sdt_link_i[7] @ casadi.sumsqr(hat_par_DYN_sym[10*i+7]  - mu_link_i[7]) +   # Iyy
-                            1/sdt_link_i[8] @ casadi.sumsqr(hat_par_DYN_sym[10*i+8]  - mu_link_i[8]) +   # Iyz
-                            1/sdt_link_i[9] @ casadi.sumsqr(hat_par_DYN_sym[10*i+9]  - mu_link_i[9]))    # Izz
+            sdt2_link_i = [link_i['mass']['sigma']* link_i['mass']['sigma'],
+                          link_i['CoM_x']['sigma']* link_i['CoM_x']['sigma'],
+                          link_i['CoM_y']['sigma']* link_i['CoM_y']['sigma'],
+                          link_i['CoM_z']['sigma']* link_i['CoM_z']['sigma'],
+                          link_i['Ixx']['sigma']* link_i['Ixx']['sigma'],
+                          link_i['Ixy']['sigma']* link_i['Ixy']['sigma'],
+                          link_i['Ixz']['sigma']* link_i['Ixz']['sigma'],
+                          link_i['Iyy']['sigma']* link_i['Iyy']['sigma'],
+                          link_i['Iyz']['sigma']* link_i['Iyz']['sigma'],
+                          link_i['Izz']['sigma']* link_i['Izz']['sigma']]
+            f_mass      +=   1/sdt2_link_i[0] @ casadi.sumsqr(hat_par_DYN_sym[10*i]   - mu_link_i[0]) # M
+            f_com       +=  (1/sdt2_link_i[1] @ casadi.sumsqr(hat_par_DYN_sym[10*i+1] - mu_link_i[1]) + # CX
+                             1/sdt2_link_i[2] @ casadi.sumsqr(hat_par_DYN_sym[10*i+2] - mu_link_i[2]) + # CY
+                             1/sdt2_link_i[3] @ casadi.sumsqr(hat_par_DYN_sym[10*i+3] - mu_link_i[3]))  # CZ
+            f_inertia   += (1/sdt2_link_i[4] @ casadi.sumsqr(hat_par_DYN_sym[10*i+4]  - mu_link_i[4]) +   # Ixx
+                            1/sdt2_link_i[5] @ casadi.sumsqr(hat_par_DYN_sym[10*i+5]  - mu_link_i[5]) +   # Ixy
+                            1/sdt2_link_i[6] @ casadi.sumsqr(hat_par_DYN_sym[10*i+6]  - mu_link_i[6]) +   # Ixz
+                            1/sdt2_link_i[7] @ casadi.sumsqr(hat_par_DYN_sym[10*i+7]  - mu_link_i[7]) +   # Iyy
+                            1/sdt2_link_i[8] @ casadi.sumsqr(hat_par_DYN_sym[10*i+8]  - mu_link_i[8]) +   # Iyz
+                            1/sdt2_link_i[9] @ casadi.sumsqr(hat_par_DYN_sym[10*i+9]  - mu_link_i[9]))    # Izz
             # additional
             if par_per_link == 11 and not link_i.get('motor',False):
                 # motor inertia
@@ -708,6 +748,11 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
                              [hat_par_REG_sym],
                              [f_additional],
                              ['params'], ['cost'])
+    
+    f_penalty_costraint_func = casadi.Function('f_penalty_costraint',
+                             [hat_par_REG_sym],
+                             [penalty_costraint],
+                             ['params'], ['cost'])
 
     # Solver Options
     if opts is None:
@@ -721,11 +766,72 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
                 "max_iter": 50000,
             }
         }
-    # Solver
-    solver = casadi.nlpsol('sol', 'ipopt', prob, opts)
 
-    sol = solver(x0=hat_par_REG_0, lbg=lb,ubg=ub)
-    hat_par_REG_optim = sol['x'].full()
+    # ---------------------------SIMULATED ANNEALING--------------------------------------------------------
+    if config_ident.get('optimization','ipopt')=='SA':
+        try:
+            from scipy.optimize import dual_annealing
+        except:
+            raise ImportError
+        # Define penalty based cost function
+        def J_SA(par_DYN, penalty_weight = 1):
+            par_DYN = par_DYN.reshape(-1, 1)
+            cost  = float(f_loss_func(par_DYN).full()[0,0])
+            cost += float(f_mass_func(par_DYN).full()[0,0])
+            cost += float(f_com_func(par_DYN).full()[0,0])
+            cost += float(f_inertia_func(par_DYN).full()[0,0])
+            # Add the constraint penalty scaled by the current iteration's weight
+            penalty = float(f_penalty_costraint_func(par_DYN).full()[0,0])
+
+            return cost + (penalty_weight * penalty)
+
+        # 2. Define the Search Space Bounds for SA
+        bounds = []
+        for i in range(n):
+            bounds.append((1e-3, 50.0)) # M  [kg]
+            bounds.append((-1.0, 1.0))  # CX [m]
+            bounds.append((-1.0, 1.0))  # CY [m]
+            bounds.append((-1.0, 1.0))  # CZ [m]
+            bounds.append((1e-6, 5.0))  # XX [kg*m^2]
+            bounds.append((-1.0, 1.0))  # XY [kg*m^2]
+            bounds.append((-1.0, 1.0))  # XZ [kg*m^2]
+            bounds.append((1e-6, 5.0))  # YY [kg*m^2]
+            bounds.append((-1.0, 1.0))  # YZ [kg*m^2]
+            bounds.append((1e-6, 5.0))  # ZZ [kg*m^2]
+
+        if par_per_link == 11:
+            for i in range(n):
+                bounds.append((1e-6, 1.0)) # Ia
+
+
+        current_guess = hat_par_REG_0.flatten()
+
+        for k in range(10):
+            # Increase penalty per outer iteration
+            penalty_weight = 10**k 
+            print(f"Outer Iteration {k+1}/{10} | Penalty Weight: {penalty_weight}")
+            # Run the Simulated Annealing global optimization
+            result = dual_annealing(
+                func=J_SA, 
+                bounds=bounds, 
+                args=(penalty_weight,), # Pass the penalty weight to J_SA
+                x0=current_guess,       # Give it the current best guess to start
+                maxiter=100,            # Max internal SA iterations (jumping/cooling) # Q
+                initial_temp=5230.0     # Default SA starting temperature
+            )
+            print(f"Current best cost: {result.fun:.4f}")
+
+            # Update our guess with the best state found in this SA run
+            current_guess = result.x 
+
+        print("\n--- Simulated Annealing Complete ---")
+        hat_par_REG_optim = current_guess
+
+    # ---------------------------CasADi IPOT--------------------------------------------------------
+    elif config_ident.get('optimization','ipopt')=='ipopt':# Solver
+        solver = casadi.nlpsol('sol', 'ipopt', prob, opts)
+        sol = solver(x0=hat_par_REG_0, lbg=lb,ubg=ub)
+        hat_par_REG_optim = sol['x'].full()
 
     # Print residuals
     results = {}
@@ -735,6 +841,10 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     results['inertia'] = f_inertia_func(hat_par_REG_optim)
     results['additional'] = f_additional_func(hat_par_REG_optim)
     print(f"Loss: {results['loss']}, Mass: {results['mass']}, Center of Mass: {results['com']}, Tensor inertia: {results['inertia']}, Additional: {results['additional']}")
+    print(f"Penalty check: {f_penalty_costraint_func(hat_par_REG_optim)}")
+
+    if not check_par_DYN_feasibility(reg2dyn(hat_par_REG_optim),n): 
+        print("[WARN] Estimated parameters do not pass feasibility check")
 
     if export_file:
         # 1. Define and create the results directory
@@ -792,6 +902,86 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         return (hat_par_REG, hat_par_Ia, results)
     
 
+
+def plot_base_identification(robot, traject, metrics, block = True):
+    """
+    Plot of the reconstructed dynamic
+
+    Args:
+        robot (_type_): _description_
+        traject (_type_): _description_
+        metrics (_type_): _description_
+        block (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
+    delta_tau = []
+    par = np.hstack([robot.get_par_REG_red(),robot.get_par_Dl()]).reshape(-1,1)
+    for i in range(traject.t.shape[0]):
+        q = traject.q[i,:]
+        dq = traject.qd[i,:]
+        ddq = traject.qdd[i,:]
+
+        robot.set_q(q)
+        robot.set_dq(dq)
+        robot.set_ddq(ddq)
+        robot.set_dqr(dq)
+        robot.set_ddqr(ddq)
+
+        # Full inverse-dynamics regressor (per-joint rows)
+        Y_red = robot.get_Yr_red()
+        Y_dl = robot.get_reg_dl()
+        Y = np.hstack([Y_red, Y_dl])
+        
+        
+        tau_est = Y @ par
+        delta_tau.append(traject.tau[i,:] - tau_est.flatten())
+
+    delta_tau = np.array(delta_tau)
+
+    rmse = np.sqrt(np.mean(np.sum(delta_tau**2, axis=1))) # RMSE = Sqrt{ 1/M Sum{||e||_2}  }
+    cond_num = metrics.get('conditioning number', None)
+    # --- 1. Plot tau ---
+    colors = {
+        'measured': '#D62728',   # Strong Red
+        'estimate': '#1F77B4',   # Strong Blue
+        'mass':     '#2CA02C',   # Forest Green
+        'coriolis': '#FF7F0E',   # Safety Orange
+        'gravity':  '#9467BD',   # Royal Purple
+        'friction': '#7F7F7F',   # Medium Gray
+        'motor': '#7F0F7F'       # Medium Gray
+    }
+    n = robot.numJoints
+    cols = int(np.sqrt(n)) 
+    rows = (n + cols - 1) // cols  # Ceiling division to handle odd numbers
+    JOINT_NAMES = traject.config['trajectory']['joints']
+
+    fig = plt.figure(figsize=(12,8))
+    try:
+        plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]}\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
+                    fontsize=16, fontweight='bold')
+    except Exception as e:
+        plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
+                fontsize=16, fontweight='bold')
+    for i in range(n):
+        plt.subplot(rows, cols,i+1)
+        #plt.plot(t_log, tau_ori[:,i], label = 'tau')
+        plt.plot(traject.t, traject.tau[:,i], 
+                color=colors['measured'], linewidth=2, label='tau_filtered')
+
+        plt.plot(traject.t, traject.tau[:,i] - delta_tau[:,i], 
+                color=colors['estimate'], linewidth=1.5, label='hat_tau')
+        plt.xlabel('Time [s]')
+        plt.ylabel('Torque [Nm]')
+        plt.title(f'Torque {JOINT_NAMES[i]}')
+        plt.grid(True)
+        if i==0:
+            plt.legend()
+    plt.tight_layout()
+    plt.show(block=block)
+
+    return fig
 
 
 def plot_identification(robot, traject, metrics, block = True):
@@ -965,3 +1155,34 @@ def load_prior(prior_path):
         raise KeyError(f"Prior file is not well-formatted")
 
     return prior
+
+
+def check_par_DYN_feasibility(par_DYN,n, verbose = False):
+    feas_flag = True
+    for i in range(n):
+        # Mass check
+        par_DYN_link_i = par_DYN[10*i:10*(i+1)]
+        if par_DYN_link_i[0] <= 0: 
+            if verbose: 
+                print(f"mass of link {i} is non positive")
+                feas_flag = False
+
+        # Triangular inequalities
+        Ib = np.zeros((3,3))
+        Ib[0,0] = par_DYN_link_i[4]
+        Ib[0,1] = par_DYN_link_i[5]
+        Ib[0,2] = par_DYN_link_i[6]
+        Ib[1,0] = par_DYN_link_i[5]
+        Ib[1,1] = par_DYN_link_i[7]
+        Ib[1,2] = par_DYN_link_i[8]
+        Ib[2,0] = par_DYN_link_i[6]
+        Ib[2,1] = par_DYN_link_i[8]
+        Ib[2,2] = par_DYN_link_i[9]
+
+        eig,_ = np.linalg.eig(Ib)
+        l_max = np.max(eig)
+        if not (np.trace(Ib)/2 - l_max > 0): 
+            if verbose:  print(f"Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - l_max})")
+            feas_flag = False
+
+    return feas_flag
