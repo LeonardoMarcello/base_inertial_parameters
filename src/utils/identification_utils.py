@@ -126,6 +126,7 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
     metrics = {}
     metrics['observable base parameters mask'] = observable_mask
     metrics['conditioning number'] = np.linalg.cond(YY)
+    metrics['sigma max'] = np.sqrt(np.max(np.linalg.eigvals(YY.T@YY)))
 
     residual = TTau - YY @ hat_pi
     metrics['residual'] = np.linalg.norm(residual)
@@ -179,6 +180,7 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     metrics = {}
     metrics['observable base parameters mask'] = observable_mask
     metrics['conditioning number'] = np.linalg.cond(YY)
+    metrics['sigma max'] = np.sqrt(np.max(np.linalg.eigvals(YY.T@YY)))
 
     residual = TTau - YY @ hat_pi
     metrics['residual'] = np.linalg.norm(residual)
@@ -268,6 +270,7 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
     metrics = {}
     metrics['observable base parameters mask'] = observable_mask
     metrics['conditioning number'] = np.linalg.cond(YY)
+    metrics['sigma max'] = np.sqrt(np.max(np.linalg.eigvals(YY.T@YY)))
 
     residual = TTau_weighted - YY_weighted @ hat_pi
     metrics['residual'] = np.linalg.norm(residual)
@@ -354,6 +357,7 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     metrics = {}
     metrics['observable base parameters mask'] = observable_mask
     metrics['conditioning number'] = np.linalg.cond(YY)
+    metrics['sigma max'] = np.sqrt(np.max(np.linalg.eigvals(YY.T@YY)))
 
     residual = TTau_weighted - YY_weighted @ hat_pi
     metrics['residual'] = np.linalg.norm(residual)
@@ -515,7 +519,7 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         # Mass must be positive
         g += [m]             # [Kg]
         lb += [1e-3]
-        ub += [5]
+        ub += [15]
 
         # Center of mass
         c = casadi.SX(3,1)
@@ -557,37 +561,39 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         #Ixx + Iyy - Izz > 0
         #Ixx + Izz - Iyy > 0
         #Izz + Iyy - Ixx > 0
-        tr = casadi.trace(Ib)
-        l_max = -minimum(-casadi.eig_symbolic(Ib))
-        #eig[i,:] = casadi.eig_symbolic(Ib)
-        eig[i,:] = f_powerm(Ib)
-        #l_max = eig[i,2]
+        tr[i] = casadi.trace(Ib)
+        l_max[i] = -minimum(-casadi.eig_symbolic(Ib))
+        eig[i,:] = casadi.eig_symbolic(Ib)
+        #eig[i,:] = f_powerm(Ib)
+        #l_max[i] = eig[i,2]
         #l_max = SN(casadi.eig_symbolic(Ib), 3)
 
-        g +=  [eig[i,0], eig[i,1], eig[i,2]]
-        lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
-        ub += [casadi.inf, casadi.inf, casadi.inf]
+        # g +=  [eig[i,0], eig[i,1], eig[i,2]]
+        # lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
+        # ub += [casadi.inf, casadi.inf, casadi.inf]
 
-        # g +=  [tr - 2*l_max - 0.06]
+        # g +=  [tr[i] - 2*l_max[i]]
         # lb += [POSITIVE_THRESH]
         # ub += [casadi.inf     ]
         # g +=  [Ib[0,0] + Ib[1,1] - Ib[2,2],             Ib[0,0] + Ib[2,2] - Ib[1,1],                 Ib[2,2] + Ib[1,1] - Ib[0,0]]
         # lb += [POSITIVE_THRESH,                                 POSITIVE_THRESH,                             POSITIVE_THRESH]
         # ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
-        g +=  [eig[i,0] + eig[i,1] - eig[i,2],             eig[i,0] + eig[i,2] - eig[i,1],                 eig[i,2] + eig[i,1] - eig[i,0]]
-        lb += [-POSITIVE_THRESH,                                 -POSITIVE_THRESH,                             -POSITIVE_THRESH]
-        ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
+        # g +=  [eig[i,0] + eig[i,1] - eig[i,2],             eig[i,0] + eig[i,2] - eig[i,1],                 eig[i,2] + eig[i,1] - eig[i,0]]
+        # lb += [-POSITIVE_THRESH,                                 -POSITIVE_THRESH,                             -POSITIVE_THRESH]
+        # ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
 
 
-        # # Generate your v matrix
-        # v_array = _generate_fibonacci_sphere(2000)
-        # for i in range(2000):
-        #     v = v_array[i,:].reshape(-1,1)
-        #     g += [casadi.mtimes(casadi.mtimes(v.T, Ib), v)]
-        #     lb += [POSITIVE_THRESH]
-        #     ub += [casadi.inf]
-        penalty_costraint += -minimum([0, tr/2 - l_max], n=2)
-        #penalty_costraint += -minimum([POSITIVE_THRESH, m ], n=2)
+        # Generate your v matrix
+        v_array = _generate_fibonacci_sphere(2000)
+        for j in range(2000):
+            v = v_array[j,:].reshape(-1,1)
+            g += [casadi.mtimes(casadi.mtimes(v.T, Ib), v)]
+            lb += [POSITIVE_THRESH]
+            ub += [casadi.inf]
+
+
+
+        penalty_costraint += -minimum([0, (tr[i]/2 - l_max[i] - POSITIVE_THRESH) ], n=2)
 
         # Positive motor inertias
         if par_per_link > 10:
@@ -785,6 +791,8 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
             return cost + (penalty_weight * penalty)
 
+        N_k = config_ident.get('k', 10)
+        Q = config_ident.get('Q', 100)
         # 2. Define the Search Space Bounds for SA
         bounds = []
         for i in range(n):
@@ -806,32 +814,33 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
         current_guess = hat_par_REG_0.flatten()
 
-        for k in range(10):
+        for k in range(N_k):
             # Increase penalty per outer iteration
             penalty_weight = 10**k 
-            print(f"Outer Iteration {k+1}/{10} | Penalty Weight: {penalty_weight}")
+            print(f"Outer Iteration {k+1}/{N_k} | Penalty Weight: {penalty_weight:.0e}")
             # Run the Simulated Annealing global optimization
             result = dual_annealing(
                 func=J_SA, 
                 bounds=bounds, 
                 args=(penalty_weight,), # Pass the penalty weight to J_SA
                 x0=current_guess,       # Give it the current best guess to start
-                maxiter=100,            # Max internal SA iterations (jumping/cooling) # Q
+                maxiter=Q,            # Max internal SA iterations (jumping/cooling) # Q
                 initial_temp=5230.0     # Default SA starting temperature
             )
             print(f"Current best cost: {result.fun:.4f}")
-
             # Update our guess with the best state found in this SA run
             current_guess = result.x 
+            if check_par_DYN_feasibility(reg2dyn(current_guess),n, verbose=False): break # If the current guess is feasible, we can stop early
 
-        print("\n--- Simulated Annealing Complete ---")
         hat_par_REG_optim = current_guess
+        print("\n--- Simulated Annealing Complete ---")
 
     # ---------------------------CasADi IPOT--------------------------------------------------------
     elif config_ident.get('optimization','ipopt')=='ipopt':# Solver
         solver = casadi.nlpsol('sol', 'ipopt', prob, opts)
         sol = solver(x0=hat_par_REG_0, lbg=lb,ubg=ub)
         hat_par_REG_optim = sol['x'].full()
+
 
     # Print residuals
     results = {}
@@ -942,6 +951,7 @@ def plot_base_identification(robot, traject, metrics, block = True):
 
     rmse = np.sqrt(np.mean(np.sum(delta_tau**2, axis=1))) # RMSE = Sqrt{ 1/M Sum{||e||_2}  }
     cond_num = metrics.get('conditioning number', None)
+    sigma_max = metrics.get('sigma max', None)
     # --- 1. Plot tau ---
     colors = {
         'measured': '#D62728',   # Strong Red
@@ -959,10 +969,10 @@ def plot_base_identification(robot, traject, metrics, block = True):
 
     fig = plt.figure(figsize=(12,8))
     try:
-        plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]}\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
+        plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]}\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}| Sigma max: {sigma_max}', 
                     fontsize=16, fontweight='bold')
     except Exception as e:
-        plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
+        plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}| Sigma max: {sigma_max}', 
                 fontsize=16, fontweight='bold')
     for i in range(n):
         plt.subplot(rows, cols,i+1)
@@ -984,7 +994,7 @@ def plot_base_identification(robot, traject, metrics, block = True):
     return fig
 
 
-def plot_identification(robot, traject, metrics, block = True):
+def plot_identification(robot, traject, metrics, title = None,block = True):
     """
     Plot of the reconstructed dynamic
 
@@ -1043,6 +1053,7 @@ def plot_identification(robot, traject, metrics, block = True):
 
     rmse = np.sqrt(np.mean(np.sum(delta_tau**2, axis=1))) # RMSE = Sqrt{ 1/M Sum{||e||_2}  }
     cond_num = metrics.get('conditioning number', None)
+    sigma_max = metrics.get('sigma max', None)
     # --- 1. Plot tau ---
     colors = {
         'measured': '#D62728',   # Strong Red
@@ -1059,39 +1070,43 @@ def plot_identification(robot, traject, metrics, block = True):
     JOINT_NAMES = traject.config['trajectory']['joints']
 
     fig = plt.figure(figsize=(12,8))
-    try:
-        plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]}\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
+    if title is not None:
+        plt.suptitle(title + f"\nRMSE: {rmse:.4f} Nm", fontsize=16, fontweight='bold')
+    else:
+        sigma_max_title = r"$\sigma_{max}$" 
+        try:
+            plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]} (RMSE: {rmse:.4f} Nm)\nConditioning Number (κ): {cond_num}| {sigma_max_title}: {sigma_max}', 
+                        fontsize=16, fontweight='bold')
+        except Exception as e:
+            plt.suptitle(f'Torque Estimation Results (RMSE: {rmse:.4f} Nm)\nConditioning Number (κ): {cond_num}| {sigma_max_title}: {sigma_max}', 
                     fontsize=16, fontweight='bold')
-    except Exception as e:
-        plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
-                fontsize=16, fontweight='bold')
     for i in range(n):
         plt.subplot(rows, cols,i+1)
         #plt.plot(t_log, tau_ori[:,i], label = 'tau')
-        plt.plot(traject.t, traject.tau[:,i], 
-                color=colors['measured'], linewidth=2, label='tau_filtered')
+        plt.plot(traject.raw_t, traject.raw_tau[:,i], 
+                color=colors['measured'], linewidth=2, label=r'$\tau$')
 
         plt.plot(traject.t, traject.tau[:,i] - delta_tau[:,i], 
-                color=colors['estimate'], linewidth=1.5, label='hat_tau')
+                color=colors['estimate'], linewidth=1.5, label=r'$\hat{\tau}$')
 
-        # Individual components use dotted or dashed lines for clarity
-        plt.plot(traject.t, tau_M[:,i], color=colors['mass'], 
-                linestyle='--', alpha=0.8, label='hat_tau_M')
+        # # Individual components use dotted or dashed lines for clarity
+        # plt.plot(traject.t, tau_M[:,i], color=colors['mass'], 
+        #         linestyle='--', alpha=0.8, label='hat_tau_M')
 
-        plt.plot(traject.t, tau_C[:,i], color=colors['coriolis'], 
-                linestyle=':', alpha=0.8, label='hat_tau_C')
+        # plt.plot(traject.t, tau_C[:,i], color=colors['coriolis'], 
+        #         linestyle=':', alpha=0.8, label='hat_tau_C')
 
-        plt.plot(traject.t, tau_G[:,i], color=colors['gravity'], 
-                linestyle='-.', alpha=0.8, label='hat_tau_G')
+        # plt.plot(traject.t, tau_G[:,i], color=colors['gravity'], 
+        #         linestyle='-.', alpha=0.8, label='hat_tau_G')
 
-        plt.plot(traject.t, tau_dl[:,i], color=colors['friction'], 
-                linestyle='dotted', alpha=0.7, label='hat_tau_dl')
-        try:
-            tau_est_Ia = robot.get_Ia()
-            plt.plot(traject.t, tau_Ia[:,i], color=colors['motor'], 
-                    linestyle='dotted', alpha=0.7, label='hat_tau_Ia')
-        except:
-            pass
+        # plt.plot(traject.t, tau_dl[:,i], color=colors['friction'], 
+        #         linestyle='dotted', alpha=0.7, label='hat_tau_dl')
+        # try:
+        #     tau_est_Ia = robot.get_Ia()
+        #     plt.plot(traject.t, tau_Ia[:,i], color=colors['motor'], 
+        #             linestyle='dotted', alpha=0.7, label='hat_tau_Ia')
+        # except:
+        #     pass
         plt.xlabel('Time [s]')
         plt.ylabel('Torque [Nm]')
         plt.title(f'Torque {JOINT_NAMES[i]}')
@@ -1186,3 +1201,33 @@ def check_par_DYN_feasibility(par_DYN,n, verbose = False):
             feas_flag = False
 
     return feas_flag
+
+
+def _generate_fibonacci_sphere(n_samples: int = 2000) -> np.ndarray:
+    """
+    Generates n_samples points nearly uniformly distributed on a unit sphere 
+    using the Fibonacci spiral method.
+
+    Returns:
+        np.ndarray: An (n_samples, 3) array of Cartesian coordinates (x, y, z).
+    """
+    # Create an index array from 0 to n_samples - 1
+    indices = np.arange(n_samples) + 0.5
+
+    # Calculate the z coordinate (linearly from 1 to -1)
+    phi = np.arccos(1 - 2 * indices / n_samples)
+
+    # Calculate the golden angle increment
+    # Golden ratio approximation: (1 + sqrt(5)) / 2
+    golden_angle = np.pi * (1 + 5**0.5)
+
+    # Calculate the azimuth angle (theta)
+    theta = golden_angle * indices
+
+    # Convert spherical coordinates to Cartesian
+    x = np.sin(phi) * np.cos(theta)
+    y = np.sin(phi) * np.sin(theta)
+    z = np.cos(phi)
+
+    # Stack into an (N, 3) array
+    return np.column_stack((x, y, z))

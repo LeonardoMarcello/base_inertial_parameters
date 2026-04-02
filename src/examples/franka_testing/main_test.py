@@ -11,6 +11,8 @@ from utils.Identifier import *
 from utils.evaluation_utils import *
 import utils.import_thunder as thunder
 
+
+hsllib_path = "/usr/local/lib/x86_64-linux-gnu/libcoinhsl.so" 
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 opts = {
    "ipopt": {
@@ -40,6 +42,9 @@ opts = {
    }
 }
 
+# --------
+
+
 # Set up Thumb Model ------
 config_path = '/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_testing/identif_config.yaml'
 with open(config_path, 'r') as f:
@@ -57,7 +62,8 @@ thunder.load_params(franka, config['robot']['path'])
 franka_ground_truth = thunder.thunder_franka()
 thunder.load_params(franka_ground_truth, "/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_SH_par.yaml")
 #thunder.load_params(franka_ground_truth, "/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_par.yaml")
-check_feasibility(franka_ground_truth)
+
+
 # Setup Identifier Object and Solve Identification Problem ----
 Identifier = Identifier(franka, config_path=config_path)
 Identifier.init()                      # 1_ load and process trajectory
@@ -65,9 +71,9 @@ Identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examp
 
 Identifier.solve_base_parameter()      # 2_ compute parameters in the base
 fig_base = plot_base_identification(robot=franka, traject=Identifier.trajectory, metrics=Identifier.metrics)
-fig_base.savefig(os.path.join("/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_testing/results/base", 'identification_result.png'), bbox_inches='tight', dpi=300)
+#fig_base.savefig(os.path.join("/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_testing/results/base", 'identification_result.png'), bbox_inches='tight', dpi=300)
 
-Identifier.solve_full_dynamics()       # 3_ compute all dynamics parameters
+Identifier.solve_full_dynamics(opts=opts)       # 3_ compute all dynamics parameters
 Identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_testing/results")     # 5_ save plot
 
 check_feasibility(franka)
@@ -79,5 +85,5 @@ Identifier.export(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples
 
 # Comparison with Soft Hand Ground-Truth
 fig_comparisoin = plot_link_solution(franka, franka_ground_truth, n = 6, block = True)
-fig_comparisoin.savefig(os.path.join("/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_testing/results", 'soft_hand_comparison_results.png'), bbox_inches='tight', dpi=300)
+#fig_comparisoin.savefig(os.path.join("/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_testing/results", 'soft_hand_comparison_results.png'), bbox_inches='tight', dpi=300)
 # Identifier.trajectory.export2csv("/home/leo/Desktop/Base Inertial Parameter/src/examples/data")

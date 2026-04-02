@@ -31,6 +31,13 @@ identification:
   method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior: Base Inertial parameters Estimation Method
   conditioning_ratio: None # truncate SVD inverse by forcing this conditioning (Default: None)
 
+  optimization: 'SA'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
+
+  # Simulated annealing ----
+  k: 12               # max number of outer iteration for simulated annealing solver
+  Q: 100              # number of iteration in simmulated annealing
+
+  # CasADi optimizer ----
   positive_threshold: 1e-16   # positive threshold for constrained problem solver (Default: 1e-16)
   inertia_scale_factor: 1 # scale inertia matrix to ease check on definitive positive costraint  (Default: 1)
   weight:

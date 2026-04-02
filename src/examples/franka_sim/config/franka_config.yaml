@@ -4,11 +4,13 @@ robot:
 trajectory:
   type: 'ros2'
 
-  bag: './rosbag/computed_torque_60s' # <-- Empty
+  #bag: './rosbag/computed_torque_60s' # <-- Empty
+  bag: './rosbag/empty_fourier_CT' # <-- Empty
+
 
   topic: '/computed_torque_controller/joint_states'
 
-  interval: [25, 55] # [s]
+  interval: [5, 55] # [s]
   joints: ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
 
 
@@ -19,7 +21,7 @@ processing:
      - 'differentiating'
      - 'differentiating'
      - 'filtering'
-  cut_off_frequency: 30 #35 [rad/s]
+  cut_off_frequency: 10 # 35 [rad/s]
   compute_velocities: true
   butterworth_order: 5 #5
   apply_decimation: false
@@ -36,16 +38,16 @@ identification:
   Q: 100              # number of iteration in simmulated annealing
 
 
-  prior_yaml: "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim/franka_prior.yaml" # wheter use specific prior (Default: None)
+  #prior_yaml: "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim/franka_prior.yaml" # wheter use specific prior (Default: None)
 
   # # CasADi optimizer ----
-  # positive_threshold: 1e-10 # positive threshold for constrained problem definition
-  # inertia_scale_factor: 1
-  # weight:
-  #   loss: 1 # gain factor for base parameters optimization
+  positive_threshold: 1e-10 # positive threshold for constrained problem definition
+  inertia_scale_factor: 1
+  weight:
+    loss: 1 # gain factor for base parameters optimization
 
-  #   mass: 1e-3     # as mass std.dev [Kg]
-  #   CoM: 1e-3      # as CoM std.dev [m]
-  #   inertia: 1e-3  # as Inertia std.dev [Kg/m^2]
+    mass: 1e-1     # as mass std.dev [Kg]
+    CoM: 1e-2      # as CoM std.dev [m]
+    inertia: 1e-4  # as Inertia std.dev [Kg/m^2]
 
-  #   link: [1, 1, 1, 1, 1, 1, 1e-2]
+    link: [1, 1, 1, 1, 1, 1, 1]

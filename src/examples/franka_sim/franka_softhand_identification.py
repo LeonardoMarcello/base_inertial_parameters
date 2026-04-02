@@ -30,8 +30,14 @@ thunder.load_params(franka_ground_truth, "/home/leo/Desktop/Base Inertial Parame
 # Setup and Solve Identification Problem ----------------------------------
 Identifier = Identifier(franka, config_path=config_path)
 Identifier.init()                      # 1_ load and process trajectory
-Identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim/results/softhand/before")     # 5_ save plot
+fig = plot_identification(Identifier.robot, Identifier.trajectory, Identifier.metrics, title = "Before Optimization", block = False)  # 4_ plot before optimization
+fig.savefig(os.path.join("/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim/results/softhand/before", 'torque.png'), bbox_inches='tight', dpi=300)
+
+
+print("Number of samples ", Identifier.trajectory.raw_tau.shape[0])
 Identifier.solve_base_parameter()      # 2_ compute parameters in the base
+
+
 Identifier.solve_full_dynamics()       # 3_ compute all dynamics parameters
 Identifier.print_table()               # 4_ print identified dynamics parameters
 Identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim/results/softhand/")     # 5_ save plot
@@ -41,4 +47,4 @@ Identifier.export(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples
 check_feasibility(franka)
 fig_comparisoin = plot_link_solution(franka, franka_ground_truth, n = 6, block = True)
 fig_comparisoin.savefig(os.path.join("/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim/results/softhand", 'soft_hand_comparison_results.png'), bbox_inches='tight', dpi=300)
-plot_table(franka, franka_ground_truth)
+plot_table(franka, franka_ground_truth, format='latex')

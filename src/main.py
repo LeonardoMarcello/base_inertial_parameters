@@ -88,9 +88,6 @@ mu_y = y @ Weight_mean
 Sigma_y = ((y - mu_y[:, None]) * Weight_cov) @ (y - mu_y[:, None]).T
 
 print(mu_y)
-print(Sigma_y)
-print(Sigma_y[1][1])
-print(Sigma_y[0][1])
 
 # Montecarlo testing-------------------------------------------------------------------------------------------------
 import numpy as np
@@ -100,7 +97,6 @@ import matplotlib.pyplot as plt
 # 1. Setup the 70D Dynamic Prior
 num_samples = 10000
 mu_dyn = franka.get_par_DYN()
-# Use your franka_var array from earlier (ensure they are variances, taking sqrt for standard dev)
 sigma_dyn = np.sqrt(franka_var) 
 N_dyn = mu_dyn.shape[0]
 
@@ -154,19 +150,19 @@ plt.show()
 # # ---------------------------------------------------------
 # # Let's test an index that heavily relies on inertia or mass moments 
 # # (You can change this index to inspect different base parameters)
-# param_to_test = 0 
+param_to_test = 35 
 
-# plt.subplot(1, 2, 2)
-# stats.probplot(P_b_samples[:, param_to_test], dist="norm", plot=plt)
-# plt.title(f"Marginal Normality of p_b\n(Base Parameter Index {param_to_test})")
-# plt.xlabel("Theoretical Normal Quantiles")
-# plt.ylabel("Observed Parameter Value")
+plt.subplot(1, 2, 2)
+stats.probplot(P_b_samples[:, param_to_test], dist="norm", plot=plt)
+plt.title(f"Marginal Normality of p_b\n(Base Parameter Index {param_to_test})")
+plt.xlabel("Theoretical Normal Quantiles")
+plt.ylabel("Observed Parameter Value")
 
-# plt.tight_layout()
-# plt.show()
+plt.tight_layout()
+plt.show()
 
 # ---------------------------------------------------------
-# TEST 3: Formal Shapiro-Wilk Test on the first Base Parameters
+# TEST 3: Formal Shapiro-Wilk Test on the Base Parameters
 # ---------------------------------------------------------
 print("\n--- Shapiro-Wilk Test on Marginal Base Parameters ---")
 # Using 4999 samples as Shapiro-Wilk can become overly sensitive or error out with >5000

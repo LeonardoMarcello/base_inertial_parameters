@@ -6,13 +6,14 @@ trajectory:
   type: 'ros2'
 
   #bag: './rosbag/computed_torque_60s' # <-- Empty
-  bag: './rosbag/panda_softhand_computed_torque_50s_v3' # <-- Softhand, s_max = 78383417.82606867
-  #bag: './rosbag/softhand_sinusoidal_CT' # <-- Softhand (NEW),           s_max =  4676179.1383352205, ma cond 20x better
+  #bag: './rosbag/panda_softhand_computed_torque_50s_v3' # <-- Softhand, s_max = 78383417.82606867
+  bag: './rosbag/softhand_sinusoidal_CT' # <-- Softhand (NEW),           s_max =  4676179.1383352205, ma cond 20x better
   #bag: './rosbag/softhand_chirp_CT' # <-- Softhand,                     s_max = 41834365.32928588
+  #bag: './rosbag/softhand_lean_fourier_CT' # <-- Softhand,                     s_max = 41834365.32928588
 
   topic: '/computed_torque_controller/joint_states'
 
-  interval: [25, 55] # [s]
+  interval: [5, 25] # [s]
   joints: ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
 
 
@@ -23,7 +24,7 @@ processing:
      - 'differentiating'
      - 'differentiating'
      - 'filtering'
-  cut_off_frequency: 30 #35 [rad/s]
+  cut_off_frequency: 10 #35 [rad/s]
   compute_velocities: true
   butterworth_order: 5 #5
   apply_decimation: false
@@ -37,7 +38,7 @@ identification:
 
   optimization: 'SA'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
   # Simulated annealing ----
-  k: 10               # number of outer iteration for simulated annealing solver
+  k: 12               # max number of outer iteration for simulated annealing solver
   Q: 100              # number of iteration in simmulated annealing
 
 
@@ -47,7 +48,7 @@ identification:
   weight:
     loss: 1 # gain factor for base parameters optimization
 
-    mass: 1e-3     # as mass std.dev [Kg]
+    mass: 1e-2     # as mass std.dev [Kg]
     CoM: 1e-3      # as CoM std.dev [m]
     inertia: 1e-3  # as Inertia std.dev [Kg/m^2]
 

@@ -48,8 +48,8 @@ def plot_eval_identification(robot, metrics, traject, robot_gt = None, block = T
     cond_num = metrics['conditioning number']
     # --- 1. Plot tau ---
     colors = {
-        'measured': '#D62728',   # Strong Red
-        'estimate': '#1F77B4',   # Strong Blue
+        'estimate': '#D62728',   # Strong Red
+        'measured': '#1F77B4',   # Strong Blue
         'ground-truth':     '#2CA02C',   # Forest Green
     }
     n = robot.numJoints
@@ -63,21 +63,21 @@ def plot_eval_identification(robot, metrics, traject, robot_gt = None, block = T
     for i in range(n):
         plt.subplot(rows, cols,i+1)
         #plt.plot(t_log, tau_ori[:,i], label = 'tau')
-        plt.plot(traject.t, traject.tau[:,i], 
-                color=colors['measured'], linewidth=2, label='tau_filtered')
+        plt.plot(traject.t, traject.tau_raw[:,i], 
+                color=colors['measured'], linewidth=2, label=r'$\tau$')
 
         plt.plot(traject.t, traject.tau[:,i] - delta_tau[:,i], 
-                color=colors['estimate'], linewidth=1.5, label='hat_tau')
+                color=colors['estimate'], linewidth=1.5, label=r'$\hat{\tau}$')
 
         plt.plot(traject.t, traject.tau[:,i] - delta_tau_GT[:,i], 
-                color=colors['ground-truth'], linewidth=1.5, label='tau_reconstructed')
+                color=colors['ground-truth'], linewidth=1.5, label=r'$\tau_{GT}$')
 
         plt.xlabel('Time [s]')
         plt.ylabel('Torque [Nm]')
         plt.title(f'Torque {JOINT_NAMES[i]}')
         plt.grid(True)
         if i==0:
-            plt.legend()
+            plt.legend(loc='lower right')
     plt.tight_layout()
     plt.show(block=block)
 
@@ -107,7 +107,7 @@ def plot_eval_LS_solution(hat_pi, metrics, robot_gt = None, block = True):
     plt.ylabel('Parameter Value')
     plt.title('Parameter Estimation vs. Ground Truth')
     plt.xticks(x) # Ensures we get a tick for every parameter index
-    plt.legend()
+    plt.legend(loc='lower right')
     plt.grid(True, linestyle='--', alpha=0.6)
 
     plt.tight_layout()
@@ -123,21 +123,36 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
     print(f"| Evaluation Table |")
     print(f" ------------------")
     np.set_printoptions(precision=4, suppress=True, linewidth=200)
+    headers = ["m", "cx", "cy", "cz", "ixx", "ixy", "ixz", "iyy", "iyz", "izz",'Ia']
+
     if hasattr(robot, "get_par_Ia"):
         par_per_link = 11
+        headers.append("Ia")
     else:
         par_per_link = 10
     n = robot.numJoints
-    headers = ["m", "cx", "cy", "cz", "ixx", "ixy", "ixz", "iyy", "iyz", "izz",'Ia']
     headers = headers[:par_per_link]
+
+    if hasattr(robot, "get_par_Dl"):
+        Dl_order = robot.Dl_order
+        if Dl_order == 1:
+            headers += ["fs"]
+        else:
+            headers += ["fs","fv"]
 
 
     if format.lower() == 'latex':
         # 1) Optimized params
+        # Motor inertia
         if par_per_link == 11:
-            params = np.hstack([robot.get_par_DYN().reshape(n,10), robot.get_par_Ia().reshape(n,1)]).reshape(n, 11)
+            params = np.hstack([robot.get_par_DYN().reshape(n,10), 
+                                robot.get_par_Ia().reshape(n,1)]).reshape(n, 11)
         else:
             params = robot.get_par_DYN().reshape((n, 10))
+        # Friction
+        if hasattr(robot, "get_par_Dl"):
+            params = np.hstack([params.reshape(n,-1),
+                                robot.get_par_Dl().reshape(n,-1)]).reshape(n, -11)
         title = "Optimized parameters"
         col_format = "c|" + "r" * len(headers)
         print(r"\begin{table}[htpb]")
@@ -169,12 +184,28 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
         print() # Add spacing between tables
 
         if robot_ground_truth is not None:
+            # ground-truth params
+            # Motor inertia
+            if par_per_link == 11:
+                gt_params = np.hstack([robot_ground_truth.get_par_DYN().reshape(n,10), robot_ground_truth.get_par_Ia().reshape(n,1)]).reshape(n, 11)
+            else:
+                gt_params = robot_ground_truth.get_par_DYN().reshape((n, 10))
+            # Friction
+            if hasattr(robot, "get_par_Dl"):
+                gt_params = np.hstack([gt_params.reshape(n,-1),
+                                        robot_ground_truth.get_par_Dl().reshape(n,-1)]).reshape(n, -11)
+
             # compute error model
             e_DYN = np.abs(robot_ground_truth.get_par_DYN() - robot.get_par_DYN())
             e_model = e_DYN.reshape((n, 10))
             if par_per_link == 11:
                 e_Ia = np.abs(robot_ground_truth.get_par_Ia() - robot.get_par_Ia())
                 e_model = np.hstack([e_DYN.reshape(n,10), e_Ia.reshape(n,1)]).reshape(n, 11)
+            # Friction
+            if hasattr(robot, "get_par_Dl"):
+                e_Dl = np.abs(robot_ground_truth.get_par_Dl() - robot.get_par_Dl())
+                e_model = np.hstack([e_model.reshape(n,-1),
+                                     e_Dl.reshape(n,-1)]).reshape(n, -1)
 
             # 2) Robot Ground-Truth ------------------------
             title = "Robot model ground-truth (DYNAMIC)"
@@ -192,7 +223,7 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             print(header_str)
 
             # Print Rows
-            for i, row in enumerate(params):
+            for i, row in enumerate(gt_params):
                 row_strs = []
                 for val in row:
                     # Convert to LaTeX scientific notation (e.g. 1.23e-04 -> $1.23 \times 10^{-4}$)
@@ -225,7 +256,7 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             print(header_str)
 
             # Print Rows
-            for i, row in enumerate(params):
+            for i, row in enumerate(e_model):
                 row_strs = []
                 for val in row:
                     # Convert to LaTeX scientific notation (e.g. 1.23e-04 -> $1.23 \times 10^{-4}$)
@@ -242,12 +273,16 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             print(r"\end{table}")
             print() # Add spacing between tables
     else:
-        # 1) Optimized params
-        print(f"Optimized parameters")
+        # Motor inertia
         if par_per_link == 11:
-            params = np.hstack([robot.get_par_DYN().reshape(n,10), robot.get_par_Ia().reshape(n,1)]).reshape(n, 11)
+            params = np.hstack([robot.get_par_DYN().reshape(n,10), 
+                                robot.get_par_Ia().reshape(n,1)]).reshape(n, 11)
         else:
             params = robot.get_par_DYN().reshape((n, 10))
+        # Friction
+        if hasattr(robot, "get_par_Dl"):
+            params = np.hstack([params.reshape(n,-1),
+                                robot.get_par_Dl().reshape(n,-1)]).reshape(n, -11)
         # Print header
         header_str = f"{'Link':<6}" + "".join([f"{h:>14}" for h in headers])
         print(header_str)
@@ -258,12 +293,28 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             print(row_str)
 
         if robot_ground_truth is not None:
+            # ground-truth params
+            # Motor inertia
+            if par_per_link == 11:
+                gt_params = np.hstack([robot_ground_truth.get_par_DYN().reshape(n,10), robot_ground_truth.get_par_Ia().reshape(n,1)]).reshape(n, 11)
+            else:
+                gt_params = robot_ground_truth.get_par_DYN().reshape((n, 10))
+            # Friction
+            if hasattr(robot, "get_par_Dl"):
+                gt_params = np.hstack([gt_params.reshape(n,-1),
+                                        robot_ground_truth.get_par_Dl().reshape(n,-1)]).reshape(n, -11)
+
             # compute error model
             e_DYN = np.abs(robot_ground_truth.get_par_DYN() - robot.get_par_DYN())
             e_model = e_DYN.reshape((n, 10))
             if par_per_link == 11:
                 e_Ia = np.abs(robot_ground_truth.get_par_Ia() - robot.get_par_Ia())
                 e_model = np.hstack([e_DYN.reshape(n,10), e_Ia.reshape(n,1)]).reshape(n, 11)
+            # Friction
+            if hasattr(robot, "get_par_Dl"):
+                e_Dl = np.abs(robot_ground_truth.get_par_Dl() - robot.get_par_Dl())
+                e_model = np.hstack([e_model.reshape(n,-1),
+                                     e_Dl.reshape(n,-1)]).reshape(n, -1)
 
             # 2) Robot Ground-Truth ------------------------
             print(f"Robot model ground-truth (DYNAMIC)")
