@@ -17,7 +17,7 @@ from utils.loader_utils import *
 def print_base_inertial_parameters(robot):
     param_names = ['M','MX','MY','MZ','XX','XY','XZ','YY','YZ','ZZ','Ia']
 
-    beta = np.round(robot.get_beta(), 16)
+    beta = np.round(robot.get_beta(), 10)
     n = robot.numJoints
     parPerLink = robot.STD_PAR_LINK
     description = ""
@@ -103,7 +103,7 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
     r = p
     if conditioning_ratio is not None:
         Sinv_trunc = np.zeros((p,p))
-        U,S,Vh = np.linalg.svd(YY.T @ YY,  compute_uv = True)
+        U,S,Ut = np.linalg.svd(YY.T @ YY,  compute_uv = True)
         sigma_max = S[0]
         for i in range(1,YY.shape[1]):
             sigma_p = S[i]
@@ -116,7 +116,7 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
 
         Sinv_trunc[:r,:r] = np.diag(1.0 / S[:r])
         Sinv_trunc[r:,r:] = 0
-        pseudo_inv = U @ Sinv_trunc @ Vh
+        pseudo_inv = U @ Sinv_trunc @ Ut
     else:
         pseudo_inv =  np.linalg.pinv(YY.T @ YY)
 
@@ -159,7 +159,7 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     r = p
     if conditioning_ratio is not None:
         Sinv_trunc = np.zeros((p,p))
-        U,S,Vh = np.linalg.svd(YY.T @ YY,  compute_uv = True)
+        U,S,Ut = np.linalg.svd(YY.T @ YY,  compute_uv = True)
         sigma_max = S[0]
         for i in range(1,YY.shape[1]):
             sigma_p = S[i]
@@ -170,7 +170,7 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
                 break
         Sinv_trunc[:r,:r] = np.diag(1.0 / S[:r])
         Sinv_trunc[r:,r:] = 0
-        pseudo_inv = U @ Sinv_trunc @ Vh
+        pseudo_inv = U @ Sinv_trunc @ Ut
     else:
         pseudo_inv =  np.linalg.pinv(YY.T @ YY)
 
@@ -248,7 +248,7 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
     r = p                # index of last singular value
     if conditioning_ratio is not None:
         Sinv_trunc = np.zeros((p,p))
-        U,S,Vh = np.linalg.svd(YY_weighted.T @ YY_weighted,  compute_uv = True)
+        U,S,Ut = np.linalg.svd(YY_weighted.T @ YY_weighted,  compute_uv = True)
         sigma_max = S[0]
         for i in range(1,YY_weighted.shape[1]):
             sigma_p = S[i]
@@ -259,8 +259,8 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
                 break
 
         Sinv_trunc[:r,:r] = np.diag(1.0 / S[:r])
-        Sinv_trunc[r:,r:] = 0
-        pseudo_inv = U @ Sinv_trunc @ Vh
+        Sinv_trunc[r:,r:] = 0.0
+        pseudo_inv = U @ Sinv_trunc @ Ut
     else:
         pseudo_inv = np.linalg.pinv(YY_weighted.T @ YY_weighted)
 
@@ -282,7 +282,6 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
     )
     metrics['error standard deviation'] = sigma_w_2
 
-    # covariance matrix of estimated parameters
     C_w = sigma_w_2 * pseudo_inv
     metrics['parameters covariance matrix'] = C_w
 
@@ -336,7 +335,7 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     r = p                 # num of parameters
     if conditioning_ratio is not None:
         Sinv_trunc = np.zeros((p,p))
-        U,S,Vh = np.linalg.svd(YY_weighted.T @ YY_weighted,  compute_uv = True)
+        U,S,Ut = np.linalg.svd(YY_weighted.T @ YY_weighted,  compute_uv = True)
         sigma_max = S[0]
         print(sigma_max)
         for i in range(YY_weighted.shape[1]):
@@ -348,7 +347,7 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
                 break
         Sinv_trunc[:r,:r] = np.diag(1.0 / S[:r])
         Sinv_trunc[r:,r:] = 0
-        pseudo_inv = U @ Sinv_trunc @ Vh
+        pseudo_inv = U @ Sinv_trunc @ Ut
     else:
         pseudo_inv = np.linalg.pinv(YY_weighted.T @ YY_weighted)
     hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
@@ -430,7 +429,7 @@ def compute_SVD_essential(robot, traject, conditioning_ratio = 50):
 
     YY, _ = get_big_Y_Tau(robot, traject)
 
-    U,S,Vh = np.linalg.svd(YY.T @ YY,  compute_uv = True)
+    U,S,Ut = np.linalg.svd(YY.T @ YY,  compute_uv = True)
     sigma_max = S[0]
     for i in range(YY.shape[1]):
         sigma_p = S[i]
@@ -442,9 +441,9 @@ def compute_SVD_essential(robot, traject, conditioning_ratio = 50):
 
     most_important_along_svd_dir = []
     for i in range(p):
-        most_important_along_svd_dir.append(np.argmax(np.abs(Vh[i,:])))
+        most_important_along_svd_dir.append(np.argmax(np.abs(Ut[i,:])))
 
-    return Vh[:p]
+    return Ut[:p]
 
 def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = False, path = None):
     # robot.set_par_REG_red(...) must be called before to set proper estimated base inertial parameters
@@ -454,6 +453,9 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     INERTIA_SCALE_FACTOR = float(config['identification'].get('inertia_scale_factor', 1))
 
     # Load dynamic parameters prior from robot
+    par_per_link = robot.STD_PAR_LINK
+
+    # Standard Parameters
     FULL_DYN_PARAM_INITIAL_GUESS = {}
     FULL_DYN_PARAM_INITIAL_GUESS['mass']  = robot.get_par_DYN()[0::10].copy()
     FULL_DYN_PARAM_INITIAL_GUESS['CoM_x'] = robot.get_par_DYN()[1::10].copy()
@@ -465,12 +467,13 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     FULL_DYN_PARAM_INITIAL_GUESS['Iyy']   = robot.get_par_DYN()[7::10].copy()
     FULL_DYN_PARAM_INITIAL_GUESS['Iyz']   = robot.get_par_DYN()[8::10].copy()
     FULL_DYN_PARAM_INITIAL_GUESS['Izz']   = robot.get_par_DYN()[9::10].copy()
+    # Motor inwertia
     if hasattr(robot,"get_par_Ia"):
-        par_per_link = robot.STD_PAR_LINK + 1
+        par_per_link += 1
         FULL_DYN_PARAM_INITIAL_GUESS['Ia']   = robot.get_par_Ia().copy()
     else:
-        par_per_link = robot.STD_PAR_LINK
         print(f"[INFO]: the model used does not include motor inertia" )
+
 
     # init guess on urdf values for inertial values. Convert from dynamic to regressor
     n = robot.numJoints
@@ -561,16 +564,26 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         #Ixx + Iyy - Izz > 0
         #Ixx + Izz - Iyy > 0
         #Izz + Iyy - Ixx > 0
+
         tr[i] = casadi.trace(Ib)
         l_max[i] = -minimum(-casadi.eig_symbolic(Ib))
-        eig[i,:] = casadi.eig_symbolic(Ib)
+
+        # Positive Pseudo-Definite Matrix constraint
+        Sigma = 0.5*casadi.trace(Ib)*np.eye(3) - Ib
+        P = casadi.vertcat(
+                 casadi.horzcat(m,                  np.zeros((1, 3))),
+                 casadi.horzcat(np.zeros((3, 1)),               Sigma)
+            )
+
+
+        eig[i,:] = casadi.eig_symbolic(P[1:,1:])
         #eig[i,:] = f_powerm(Ib)
         #l_max[i] = eig[i,2]
         #l_max = SN(casadi.eig_symbolic(Ib), 3)
 
-        # g +=  [eig[i,0], eig[i,1], eig[i,2]]
-        # lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
-        # ub += [casadi.inf, casadi.inf, casadi.inf]
+        g +=  [eig[i,0], eig[i,1], eig[i,2]]
+        lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
+        ub += [casadi.inf, casadi.inf, casadi.inf]
 
         # g +=  [tr[i] - 2*l_max[i]]
         # lb += [POSITIVE_THRESH]
@@ -583,13 +596,13 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         # ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
 
 
-        # Generate your v matrix
-        v_array = _generate_fibonacci_sphere(2000)
-        for j in range(2000):
-            v = v_array[j,:].reshape(-1,1)
-            g += [casadi.mtimes(casadi.mtimes(v.T, Ib), v)]
-            lb += [POSITIVE_THRESH]
-            ub += [casadi.inf]
+        # Generate your v matrix (numerical check for sem. def. pos.)
+        # v_array = _generate_fibonacci_sphere(2000)
+        # for j in range(2000):
+        #     v = v_array[j,:].reshape(-1,1)
+        #     #g += [casadi.mtimes(casadi.mtimes(v.T, Ib), v)]
+        #     lb += [POSITIVE_THRESH]
+        #     ub += [casadi.inf]
 
 
 
@@ -609,9 +622,29 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     beta = np.round(robot.get_beta(), 16)
 
     if sigma_pi is not None and sigma_pi.shape[0] == sigma_pi.shape[1]:
+        # # Use covariance matrix of base parameters
+        # print(sigma_pi[:-n*2,:-n*2])
+        # print(np.linalg.matrix_rank(sigma_pi[:-n*2,:-n*2]))
+        # W_sigma_inv = np.linalg.pinv(sigma_pi[:-n*2,:-n*2])
+        # f_loss = (hat_par_REG_red_star - beta@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - beta@hat_par_REG_sym)
+
+
+
         # Use covariance matrix of base parameters
-        W_sigma_inv = np.linalg.pinv(sigma_pi[:-n*2,:-n*2])
-        f_loss = (hat_par_REG_red_star - beta@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - beta@hat_par_REG_sym)
+        C_w = sigma_pi[:-n*2, :-n*2]
+        U, S, Vh = np.linalg.svd(C_w)
+        tol = 1e-9 # tolerance for truncaated invertion
+        valid_modes = S > tol
+
+        # Compute residual as (Le)'(Le) 
+        S_inv_sqrt = np.sqrt(1.0 / S[valid_modes])
+        L = casadi.DM(np.diag(S_inv_sqrt) @ Vh[valid_modes, :])
+        e = hat_par_REG_red_star - casadi.mtimes(beta, hat_par_REG_sym)
+        weighted_residual = casadi.mtimes(L, e)
+        f_loss = casadi.dot(weighted_residual, weighted_residual)
+
+
+
     elif sigma_pi is not None and sigma_pi.shape[0] != sigma_pi.shape[1]:
         # Weight with inverse of relative std.dev. of base parameters
         print("[WARN] Provided covariance matrix is not squared. Treating as relative std.deviation of base parameters")
@@ -726,7 +759,7 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     prob['f'] = w_loss* f_loss + (
                                     f_mass +
                                     f_com +
-                                    f_inertia + 
+                                    f_inertia +
                                     f_additional
                                  )
     prob['g'] = casadi.vertcat(*g)
@@ -754,7 +787,7 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
                              [hat_par_REG_sym],
                              [f_additional],
                              ['params'], ['cost'])
-    
+
     f_penalty_costraint_func = casadi.Function('f_penalty_costraint',
                              [hat_par_REG_sym],
                              [penalty_costraint],
@@ -824,8 +857,9 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
                 bounds=bounds, 
                 args=(penalty_weight,), # Pass the penalty weight to J_SA
                 x0=current_guess,       # Give it the current best guess to start
-                maxiter=Q,            # Max internal SA iterations (jumping/cooling) # Q
-                initial_temp=5230.0     # Default SA starting temperature
+                maxiter=Q,             # Max internal SA iterations (jumping/cooling) # Q
+                initial_temp=5230.0,   # Default SA starting temperature
+                seed=41                # set deterministic
             )
             print(f"Current best cost: {result.fun:.4f}")
             # Update our guess with the best state found in this SA run
@@ -909,7 +943,71 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         hat_par_REG = hat_par_REG_optim[:n*10]
         hat_par_Ia = hat_par_REG_optim[n*10:n*11]
         return (hat_par_REG, hat_par_Ia, results)
-    
+
+
+def LMI_projection(robot, weights = None,psd_tol = 1e-5):
+    """
+    Projection of the estimated parameters into the nearest pheasible set of parameter via an Linear Matrix Inequality problem.
+    min || par_DYN_proj - par_DYN ||_w ^2
+    s.t.
+        m > 0
+        P > 0
+    defined by the LMI constraints for positive definiteness of inertia matrix.
+
+    Args:
+        robot (_thunder_robot_): _model of the robot_
+        weights (_np.ndarray_, optional): _weights for the projection cost function_. Defaults to None.
+        threshold (float, optional): _threshold for positive definiteness_. Defaults to 1e-5.
+    Returns:
+        _np.ndarray_: _Feasible set of parameters_
+    """
+    import cvxpy as cp
+
+    par_DYN = robot.get_par_DYN().copy()
+    n = robot.numJoints
+    for i in range(n):
+        # Dynamic parameters o i-th link
+        par_DYN_proj = cp.Variable(10)
+
+        if weights is None:
+            m_max = np.max(par_DYN[10*i])  # Extract mass values
+            com_max = np.linalg.norm(par_DYN[i*10 + 1:i*10 + 4])
+            I_max = np.linalg.norm(par_DYN[i*10 + 4:i*10 + 10])  # Extract inertia values
+
+            W = np.eye(10)
+            W[0,0] = 1/(m_max)  # Weight for mass parameters
+            W[1:4, 1:4] = 1/(com_max)  # Weight for CoM parameters
+            W[4:10, 4:10] = 1/(I_max)  # Weight for inertia parameters
+        else:
+            W = cp.diag(weights)
+
+        residual = W @ (par_DYN_proj - par_DYN[i*10:(i+1)*10])
+        J = cp.sum_squares(residual)
+        constraints = []
+        
+        m = cp.reshape(par_DYN_proj[0], (1, 1), order='C') # mass
+        I_bar = cp.bmat([[par_DYN_proj[4], par_DYN_proj[5], par_DYN_proj[6]],  # Barycentric Inertia
+                         [par_DYN_proj[5], par_DYN_proj[7], par_DYN_proj[8]],
+                         [par_DYN_proj[6], par_DYN_proj[8], par_DYN_proj[9]]])
+
+        # Positive Pseudo-Definite Matrix constraint
+        Sigma = 0.5*cp.trace(I_bar)*np.eye(3) - I_bar
+
+        P = cp.bmat([
+                    [m,                np.zeros((1, 3))],
+                    [np.zeros((3, 1)), Sigma           ]
+                ])
+        constraints += [P >> psd_tol * np.eye(4)]
+        constraints += [m >= 1e-5]
+        prob = cp.Problem(cp.Minimize(J), constraints)
+        prob.solve(solver=cp.SCS, verbose=False)
+
+        print(f"Link {i}: Projection optimization status: {prob.status}, optimal value: {prob.value}")
+        par_DYN[i*10 + 1:i*10 + 4] = par_DYN_proj.value.flatten().copy()
+
+    return par_DYN
+
+
 
 
 def plot_base_identification(robot, traject, metrics, block = True):
@@ -942,8 +1040,8 @@ def plot_base_identification(robot, traject, metrics, block = True):
         Y_red = robot.get_Yr_red()
         Y_dl = robot.get_reg_dl()
         Y = np.hstack([Y_red, Y_dl])
-        
-        
+
+
         tau_est = Y @ par
         delta_tau.append(traject.tau[i,:] - tau_est.flatten())
 
@@ -1199,6 +1297,8 @@ def check_par_DYN_feasibility(par_DYN,n, verbose = False):
         if not (np.trace(Ib)/2 - l_max > 0): 
             if verbose:  print(f"Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - l_max})")
             feas_flag = False
+
+    if verbose and feas_flag:  print(f"Test passed")
 
     return feas_flag
 

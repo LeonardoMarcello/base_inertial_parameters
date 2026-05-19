@@ -322,6 +322,10 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
                 params = np.hstack([robot.get_par_DYN().reshape(n,10), robot.get_par_Ia().reshape(n,1)]).reshape(n, 11)
             else:
                 params = robot_ground_truth.get_par_DYN().reshape((n, 10))
+            # Friction
+            if hasattr(robot, "get_par_Dl"):
+                params = np.hstack([params.reshape(n,-1),
+                                    robot_ground_truth.get_par_Dl().reshape(n,-1)]).reshape(n, -11)
             # Print header
             header_str = f"{'Link':<6}" + "".join([f"{h:>14}" for h in headers])
             print(header_str)
@@ -448,11 +452,11 @@ def check_feasibility(robot):
         casadi_eig = f_powerm(Ib)
         if not (np.trace(Ib)/2 - l_max > 0): 
             print(f"Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - l_max})")
-            print(f"CasADi - Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - casadi_eig[2]})")
-            print(f"num - eig")
-            print(eig)
-            print(f"CasADi - eig")
-            print(casadi_eig)
+            # print(f"CasADi - Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - casadi_eig[2]})")
+            # print(f"num - eig")
+            # print(eig)
+            # print(f"CasADi - eig")
+            # print(casadi_eig)
 
         # Determinant Test
         ds = [det(Ib[:3,:3]), det(Ib[:2,:2]), det(Ib[:1,:1])]

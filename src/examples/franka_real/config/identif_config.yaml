@@ -6,12 +6,7 @@ trajectory:
   type: 'ros2'
 
   #bag: './rosbag/computed_torque_60s' # <-- Empty
-  #bag: './rosbag/franka_sim_chirp_CT' # <-- Empty
-  bag: './rosbag/empty_fourier_CT' # <-- Empty
-  
-  #bag: './rosbag/franka_real_fourier_CT' # <-- Empty
-  
-
+  bag: './rosbag/franka_real_fourier_CT' # <-- Empty
   #bag: './rosbag/panda_softhand_computed_torque_50s_v3' # <-- Softhand, s_max = 78383417.82606867
   #bag: './rosbag/softhand_sinusoidal_CT' # <-- Softhand (NEW),           s_max =  4676179.1383352205, ma cond 20x better
   #bag: './rosbag/softhand_chirp_CT' # <-- Softhand,                     s_max = 41834365.32928588
@@ -24,7 +19,7 @@ trajectory:
 
 
 processing:
-  pipeline:   # Which pipeline apply for data processing, default: ['filtering','differentiating','decimating'] 
+  pipeline:   # Which pipeline apply for data processing ['filtering','differentiating','decimating'] 
      - 'decimating'
      - 'filtering'
      - 'differentiating'
@@ -40,12 +35,12 @@ processing:
 
 identification:
   method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
-  #conditioning_ratio: 100 # truncate SVD inverse by forcing this conditioning (Default: None)
+  #conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning (Default: None)
 
-  optimization: 'SA'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
+  optimization: 'ipopt'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
   # Simulated annealing ----
   k: 12               # max number of outer iteration for simulated annealing solver
-  Q: 100              # number of inner iteration in simulated annealing
+  Q: 100              # number of iteration in simmulated annealing
 
 
   # CasADi optimizer ----

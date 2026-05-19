@@ -18,11 +18,36 @@ The **base parameter identification** is implemented via:
 
 The **full parameter identification** is implemented in CasADi using the solver:
 - **IPOTP** (Interior Point)
+or using the simulated annealing algorithm
 
 The **Results** are stored in a folder containing the following:
 - **Trajectory Plots**
 - **Reconstructed trajectory and metrics Plot**
 - **Thunder formatted configiguration file**
+
+## Installation
+# Option 1: Using Docker
+```bash
+git clone https://github.com/LeonardoMarcello/base_inertial_parameter.git
+
+cd activate base_inertial_parameters
+
+docker build -t base-inertial-parameters:latest -f docker/Dockerfile .
+```
+
+# Option 2: Using Conda virtual environment
+```bash
+git clone https://github.com/LeonardoMarcello/base_inertial_parameter.git
+
+cd activate base_inertial_parameters
+
+conda env create -f environment.yaml
+conda activate base_inertial_parameters
+
+pip install -e .
+```
+
+
 
 ## Example
 
