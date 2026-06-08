@@ -17,7 +17,7 @@ The **base parameter identification** is implemented via:
 - **LS|prior** (Least Squared error with prior)
 
 The **full parameter identification** is implemented in CasADi using the solver:
-- **IPOTP** (Interior Point)
+- **IPOTP** (Interior Point) 
 or using the simulated annealing algorithm
 
 The **Results** are stored in a folder containing the following:
@@ -26,20 +26,20 @@ The **Results** are stored in a folder containing the following:
 - **Thunder formatted configiguration file**
 
 ## Installation
-# Option 1: Using Docker
+### Option 1: Using Docker
 ```bash
 git clone https://github.com/LeonardoMarcello/base_inertial_parameter.git
 
-cd activate base_inertial_parameters
+cd base_inertial_parameters
 
 docker build -t base-inertial-parameters:latest -f docker/Dockerfile .
 ```
 
-# Option 2: Using Conda virtual environment
+### Option 2: Using Conda virtual environment
 ```bash
 git clone https://github.com/LeonardoMarcello/base_inertial_parameter.git
 
-cd activate base_inertial_parameters
+cd base_inertial_parameters
 
 conda env create -f environment.yaml
 conda activate base_inertial_parameters
@@ -69,42 +69,6 @@ examples/
 └── ahand_thumb/
      └── ...
 ```
-
-## Directory Structure (TO DO)
-
-### Core Scripts
-
-#### `main.py`
-**Purpose**: Main entry point for robot parameter identification  
-**Key Features**:
-- Loads robot configuration from YAML files
-- Instantiates robot model (Franka, Allegro Hand, etc.)
-- Creates an `Identifier` object and orchestrates the identification workflow
-- Supports base parameter estimation and full dynamics computation
-
-#### `franka_identification.py`
-**Purpose**: Standalone Franka Panda parameter identification  
-**Key Features**:
-- Processes rosbag data for Franka joint states
-- Computes reduced parameter set using dynamic regressors
-- Estimates friction terms and dynamic parameters
-- Generates comparison plots (identified vs ground truth)
-- Exports results to files and YAML configs
-
-#### `franka_softhand_identification.py`
-**Purpose**: Parameter identification for Franka + Soft Hand system  
-**Key Features**:
-- Similar workflow to Franka identification
-- Handles combined Franka + soft hand dynamics
-- Separate parameter estimation for integrated system
-
-#### `thunder_base_inertial_parameters_estim.py`
-**Purpose**: Flexible base inertial parameter estimation framework  
-**Key Features**:
-- Generic parameter identification pipeline
-- Supports multiple robot configurations
-- Reduced parameter set computation
-- Batch processing and result aggregation
 
 ### Directories
 
@@ -157,7 +121,8 @@ Example configurations and workflows for different robots:
 - `ahand_finger/` - Allegro Hand finger examples
 
 #### `thunder/`
-Thunder generated file for robot modelling:
+Thunder generated file for robot modelling: 
+(see [Thunder Dynamics](https://github.com/CentroEPiaggio/thunder_dynamics) for more details) 
 - Auto-generated robot models and parameters
 - Dynamic equations and regressor computation
 - Parameter definitions and constraints

@@ -1,0 +1,46 @@
+robot:
+  path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/ahand_thumb_generatedFiles/ahand_thumb_par.yaml'
+
+trajectory:
+  type: 'ros2'
+  bag: '/home/leo/Desktop/allegro_hand_ros2_ws/workdir/allegro_hand_thumb_2traject_bag'
+  topic: '/allegroHand_0/joint_states'
+  joints: ['joint_12_0', 'joint_13_0', 'joint_14_0', 'joint_15_0']  # Thumb joints
+  interval: [0, 500] # [s]
+
+processing:
+  pipeline:   # Which pipeline apply for data processing ['filtering','differentiating','decimating'] 
+     - 'decimating'
+     - 'filtering'
+     - 'differentiating'
+     - 'differentiating'
+     - 'filtering'
+  cut_off_frequency: 25 # [rad/s]
+  compute_velocities: true
+  butterworth_order: 5 #5
+  apply_decimation: false
+  decimate_factor: 10
+  #flip_torques: true
+
+identification:
+  method: 'WLS|prior' # OLS, WLS, OLS|prior, WLS|prior
+  conditioning_ratio: 200 # truncate SVD inverse by forcing this conditioning ( Default: None)
+  optimization: 'ipopt'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
+  # Simulated annealing ----
+  k: 12               # max number of outer iteration for simulated annealing solver
+  Q: 100              # number of iteration in simmulated annealing
+
+
+  # CasADi optimizer ----
+  positive_threshold: 1e-10 # positive threshold for constrained problem definition
+  numerical_eigen: true     # whether to use numerical check for semidefinite positiveness of inertia matrix
+
+  inertia_scale_factor: 1e5
+  weight:
+    loss: 1 # gain factor for base parameters optimization
+
+    mass: 1e-3     # as mass std.dev [Kg]
+    CoM: 3e-4     # as CoM std.dev [m]
+    inertia: 1e-7  # as Inertia std.dev [Kg/m^2]
+
+    link: [1, 1, 1, 1]

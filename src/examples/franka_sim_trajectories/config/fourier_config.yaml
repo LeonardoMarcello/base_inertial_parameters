@@ -1,0 +1,51 @@
+robot:
+  path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_par.yaml'
+
+trajectory:
+  type: 'ros2'
+
+  bag: './rosbag/softhand_lean_fourier_CT'
+
+  topic: '/computed_torque_controller/joint_states'
+
+  interval: [5, 25] # [s]
+  joints: ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
+
+
+processing:
+  pipeline:   # Which pipeline apply for data processing ['filtering','differentiating','decimating'] 
+     - 'decimating'
+     - 'filtering'
+     - 'differentiating'
+     - 'differentiating'
+     - 'filtering'
+  cut_off_frequency: 10 #35 [rad/s]
+  compute_velocities: true
+  butterworth_order: 5 #5
+  apply_decimation: false
+  decimate_factor: 10
+
+
+identification:
+  method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
+  #conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning (Default: None)
+
+  optimization: 'ipopt'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
+  # Simulated annealing ----
+  k: 10               # number of outer iteration for simulated annealing solver
+  Q: 100              # number of iteration in simmulated annealing
+
+
+  # CasADi optimizer ----
+  # positive_threshold: 1e-10 # positive threshold for constrained problem definition
+  # inertia_scale_factor: 1
+
+
+  weight:
+    loss: 1 # gain factor for base parameters optimization
+
+    mass: 1e-3     # as mass std.dev [Kg]
+    CoM: 1e-4      # as CoM std.dev [m]
+    inertia: 1e-4  # as Inertia std.dev [Kg/m^2]
+
+    link: [1, 1, 1, 1, 1, 1, 1]

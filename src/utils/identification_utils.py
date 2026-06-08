@@ -139,12 +139,12 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
     metrics['error standard deviation'] = sigma_w_2
 
     # covariance matrix of estimated parameters
-    C_w = sigma_w_2 * pseudo_inv
+    C_w = np.round(sigma_w_2 * pseudo_inv, decimals=20)
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
     sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i] + 1e-10) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     metrics['parameters standard deviation'] = sigma_pi
     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
@@ -193,13 +193,13 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     metrics['error standard deviation'] = sigma_w_2
 
     # covariance matrix of estimated parameters
-    C_w = sigma_w_2 * pseudo_inv                # <-- Check
+    C_w = np.round(sigma_w_2 * pseudo_inv, decimals=20)                # <-- Check
     # C_w = sigma_w_2 * np.linalg.inv(YY.T@YY)  # <-- Check
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
     sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i] + 1e-10) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     metrics['parameters standard deviation'] = sigma_pi
     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
@@ -282,12 +282,12 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
     )
     metrics['error standard deviation'] = sigma_w_2
 
-    C_w = sigma_w_2 * pseudo_inv
+    C_w = np.round(sigma_w_2 * pseudo_inv, decimals=20)
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
     sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i] + 1e-10) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     metrics['parameters standard deviation'] = sigma_pi
     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
@@ -350,7 +350,7 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
         pseudo_inv = U @ Sinv_trunc @ Ut
     else:
         pseudo_inv = np.linalg.pinv(YY_weighted.T @ YY_weighted)
-    hat_pi = hat_pi_ref + pseudo_inv @ YY.T @ (TTau - YY @ hat_pi_ref)
+    hat_pi = hat_pi_ref + pseudo_inv @ YY_weighted.T @ (TTau_weighted - YY_weighted @ hat_pi_ref)
 
     # > Compute metrics
     metrics = {}
@@ -369,12 +369,12 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     metrics['error standard deviation'] = sigma_w_2
 
     # covariance matrix of estimated parameters
-    C_w = sigma_w_2 * pseudo_inv
+    C_w = np.round(sigma_w_2 * pseudo_inv, decimals=20)
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
     sigma_pi = np.array([np.sqrt(C_w[i,i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
-    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i]) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
+    sigma_pi_perc = np.array([100*sigma_pi[i]/np.abs(hat_pi[i] + 1e-10) for i in range(hat_pi.shape[0])]).reshape(hat_pi.shape)
     metrics['parameters standard deviation'] = sigma_pi
     metrics['parameters relative standard deviation'] = sigma_pi_perc
 
@@ -451,6 +451,8 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     # Load solution parameters
     POSITIVE_THRESH = float(config['identification'].get('positive_threshold',1e-16))
     INERTIA_SCALE_FACTOR = float(config['identification'].get('inertia_scale_factor', 1))
+    
+    NUMERICAL_EIGEN = float(config['identification'].get('numerical_eigen', False))
 
     # Load dynamic parameters prior from robot
     par_per_link = robot.STD_PAR_LINK
@@ -597,12 +599,13 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
 
         # Generate your v matrix (numerical check for sem. def. pos.)
-        # v_array = _generate_fibonacci_sphere(2000)
-        # for j in range(2000):
-        #     v = v_array[j,:].reshape(-1,1)
-        #     #g += [casadi.mtimes(casadi.mtimes(v.T, Ib), v)]
-        #     lb += [POSITIVE_THRESH]
-        #     ub += [casadi.inf]
+        if NUMERICAL_EIGEN:
+            v_array = _generate_fibonacci_sphere(2000)
+            for j in range(2000):
+                v = v_array[j,:].reshape(-1,1)
+                g += [casadi.mtimes(casadi.mtimes(v.T, Ib), v)]
+                lb += [POSITIVE_THRESH]
+                ub += [casadi.inf]
 
 
 
@@ -613,7 +616,7 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
             Ia = hat_par_REG_sym[n*10 + i]
             g +=  [Ia]
             lb += [POSITIVE_THRESH]
-            ub += [casadi.inf]
+            ub += [1.0]
 
     # - Define Optimization Cost
     # -- Residual in the base parameters

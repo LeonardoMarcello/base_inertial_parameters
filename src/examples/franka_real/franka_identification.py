@@ -46,19 +46,18 @@ thunder.load_params(franka_ground_truth, "/home/leo/Desktop/Base Inertial Parame
 
 
 # Setup Identifier Object and Solve Identification Problem ----
-Identifier = Identifier(franka, config_path=config_path)
-Identifier.init()                      # 1_ load and process trajectory
-Identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_real/results/before")     # 5_ save plot
+identifier = Identifier(franka, config_path=config_path)
+identifier.init()                      # 1_ load and process trajectory
+identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_real/results/before")     # 5_ save plot
 
 
-Identifier.solve_base_parameter()      # 2_ compute parameters in the base
-fig_base = plot_base_identification(robot=franka, traject=Identifier.trajectory, metrics=Identifier.metrics)
+identifier.solve_base_parameter()      # 2_ compute parameters in the base
+fig_base = plot_base_identification(robot=franka, traject=identifier.trajectory, metrics=identifier.metrics)
 #fig_base.savefig(os.path.join("/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_testing/results/base", 'identification_result.png'), bbox_inches='tight', dpi=300)
 
-Identifier.solve_full_dynamics(opts=opts)       # 3_ compute all dynamics parameters
-Identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_real/results")     # 5_ save plot
-
+identifier.solve_full_dynamics(opts=opts)       # 3_ compute all dynamics parameters
+identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_real/results")     # 5_ save plot
 check_feasibility(franka)
 plot_table(franka, franka_ground_truth)
 plt.show(block=True)
-Identifier.export(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_real/results")        # 6_ export in thunder config yaml file
+identifier.export(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_real/results")        # 6_ export in thunder config yaml file
