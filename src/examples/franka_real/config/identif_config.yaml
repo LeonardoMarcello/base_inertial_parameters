@@ -1,16 +1,10 @@
 robot:
-  path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_par.yaml'
-  #path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_SH_par.yaml' # RMSE =1.0871
+  path: './src/thunder/franka_generatedFiles/param/franka_par.yaml'
 
 trajectory:
   type: 'ros2'
 
-  #bag: './rosbag/computed_torque_60s' # <-- Empty
-  bag: './rosbag/franka_real_fourier_CT' # <-- Empty
-  #bag: './rosbag/panda_softhand_computed_torque_50s_v3' # <-- Softhand, s_max = 78383417.82606867
-  #bag: './rosbag/softhand_sinusoidal_CT' # <-- Softhand (NEW),           s_max =  4676179.1383352205, ma cond 20x better
-  #bag: './rosbag/softhand_chirp_CT' # <-- Softhand,                     s_max = 41834365.32928588
-  #bag: './rosbag/softhand_lean_fourier_CT' # <-- Softhand,                     s_max = 41834365.32928588
+  bag: './rosbag/franka_real_fourier_CT'
 
   topic: '/computed_torque_controller/joint_states'
 
@@ -19,33 +13,29 @@ trajectory:
 
 
 processing:
-  pipeline:   # Which pipeline apply for data processing ['filtering','differentiating','decimating'] 
+  pipeline:
      - 'decimating'
      - 'filtering'
      - 'differentiating'
      - 'differentiating'
      - 'filtering'
-  cut_off_frequency: 10 #35 [rad/s]
+  cut_off_frequency: 10 # [rad/s]
   compute_velocities: true
-  butterworth_order: 5 #5
+  butterworth_order: 5
   apply_decimation: false
   decimate_factor: 10
-  #flip_torques: true
 
 
 identification:
-  method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
-  #conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning (Default: None)
+  method: 'WLS'
 
   optimization: 'ipopt'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
-  # Simulated annealing ----
-  k: 12               # max number of outer iteration for simulated annealing solver
-  Q: 100              # number of iteration in simmulated annealing
-
 
   # CasADi optimizer ----
   positive_threshold: 1e-10 # positive threshold for constrained problem definition
   inertia_scale_factor: 1
+  numerical_eigen: true     # whether to use numerical check for semidefinite positiveness of inertia matrix
+
   weight:
     loss: 1 # gain factor for base parameters optimization
 

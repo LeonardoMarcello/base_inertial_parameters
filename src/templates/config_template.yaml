@@ -24,7 +24,7 @@ processing:
   butterworth_order: 5    # butterworth filtering order
   apply_decimation: true  #
   decimate_factor: 10     # reduce samples of this many times
-  flip_torques: false     # wheter change joint torce sign (e.g. when using raw Franka Emika Panda)
+  flip_torques: false     # wheter change joint torque sign (e.g. when using raw Franka Emika Panda)
 
 
 identification:
@@ -39,7 +39,9 @@ identification:
 
   # CasADi optimizer ----
   positive_threshold: 1e-16   # positive threshold for constrained problem solver (Default: 1e-16)
-  inertia_scale_factor: 1 # scale inertia matrix to ease check on definitive positive costraint  (Default: 1)
+  inertia_scale_factor: 1     # scale inertia matrix to ease check on definitive positive costraint  (Default: 1)
+  numerical_eigen: false      # whether to use numerical approximation for semidefinite positiveness of inertia matrix   (Default: false)
+
   weight:
     loss: 1         # gain factor for base parameters optimization (Default: 1)
     mass: 1e-3      # mass std.dev [Kg]

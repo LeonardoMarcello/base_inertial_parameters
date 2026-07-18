@@ -1,5 +1,5 @@
 robot:
-  path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_par.yaml'
+  path: './src/thunder/franka_generatedFiles/param/franka_par.yaml'
 
 trajectory:
   type: 'ros2'
@@ -13,32 +13,27 @@ trajectory:
 
 
 processing:
-  pipeline:   # Which pipeline apply for data processing ['filtering','differentiating','decimating'] 
+  pipeline:
      - 'decimating'
      - 'filtering'
      - 'differentiating'
      - 'differentiating'
      - 'filtering'
-  cut_off_frequency: 10 #35 [rad/s]
+  cut_off_frequency: 10 # [rad/s]
   compute_velocities: true
-  butterworth_order: 5 #5
+  butterworth_order: 5
   apply_decimation: false
   decimate_factor: 10
 
 
 identification:
-  method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
-  #conditioning_ratio: 54 # truncate SVD inverse by forcing this conditioning (Default: None)
+  method: 'WLS' 
 
   optimization: 'ipopt'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
-  # Simulated annealing ----
-  k: 10               # number of outer iteration for simulated annealing solver
-  Q: 100              # number of iteration in simmulated annealing
-
 
   # CasADi optimizer ----
-  # positive_threshold: 1e-10 # positive threshold for constrained problem definition
-  # inertia_scale_factor: 1
+  positive_threshold: 1e-10 # positive threshold for constrained problem definition
+  inertia_scale_factor: 1
 
 
   weight:

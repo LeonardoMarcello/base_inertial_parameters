@@ -16,7 +16,7 @@ opts = {
 }
 
 # Set up Thumb Model ------
-config_path = '/home/leo/Desktop/Base Inertial Parameter/src/examples/allegro_hand/config/ahand_thumb_config.yaml'
+config_path = './src/examples/allegro_hand/config/ahand_thumb_config.yaml'
 with open(config_path, 'r') as f:
    config = yaml.load(f, Loader=SafeLoader)
 thumb = thunder.thunder_ahand_thumb()
@@ -34,8 +34,8 @@ identifier.solve_full_dynamics()       # 3_ compute all dynamics parameters
 check_feasibility(thumb)
 
 identifier.print_table()               # 4_ print identified dynamics parameters
-identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/allegro_hand/thumb/results")     # 5_ save plot
-identifier.export(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/allegro_hand/thumb/results")        # 6_ export in thunder config yaml file
+identifier.save_plot(path = "./src/examples/allegro_hand/thumb/results")     # 5_ save plot
+identifier.export(path = "./src/examples/allegro_hand/thumb/results")        # 6_ export in thunder config yaml file
 
 
 

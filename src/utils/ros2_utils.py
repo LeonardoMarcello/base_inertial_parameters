@@ -10,7 +10,7 @@ from sensor_msgs.msg import JointState
 from utils.loader_utils import *
 
 
-class TrajectoryManagerROS2(TrajectoryManager):    
+class TrajectoryManagerROS2(TrajectoryManager):
     """
     Class for the eas of traject manage. It extend Trajectory manager etc...
     add attr routn etc...
@@ -37,7 +37,6 @@ class TrajectoryManagerROS2(TrajectoryManager):
         while reader.has_next():
             (topic, data, t) = reader.read_next()
             if topic == topic_name:
-            #if topic == '/allegroHand_0/torque_cmd':
                 msg = deserialize_message(data, JointState)
                 msg_joint_names = msg.name
 

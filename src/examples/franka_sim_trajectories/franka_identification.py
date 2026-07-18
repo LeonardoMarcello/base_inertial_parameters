@@ -1,83 +1,5 @@
-# """Comparison of Base PArameters estimation using different trajectories.
-# """
-# from utils.Identifier import *
-# from utils.evaluation_utils import *
-# import utils.import_thunder as thunder
-
-# franka_ground_truth = thunder.thunder_franka()
-# thunder.load_params(franka_ground_truth, "/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_par.yaml")
-
-# # --------
-# # 1) Fourier Decomposition
-
-# # Set up Franka Model ------
-# config_path = '/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim_trajectories/config/fourier_config.yaml'
-# with open(config_path, 'r') as f:
-#    config = yaml.load(f, Loader=SafeLoader)
-# franka = thunder.thunder_franka()
-# thunder.load_params(franka, config['robot']['path'])
-
-
-
-
-# # Setup Identifier Object and Solve Identification Problem ----
-# identifier = Identifier(franka, config_path=config_path)
-# identifier.init()                      # 1_ load and process trajectory
-# identifier.solve_base_parameter()      # 2_ compute parameters in the base
-# fourier_BP = franka.get_par_REG_red().copy() # Save base parameters for comparison
-# print("Base Parameters estimated with Fourier trajectory:")
-# print(fourier_BP)
-# print(identifier.metrics['conditioning number'])
-# print(identifier.metrics['parameters relative standard deviation'])
-
-
-# # --------
-# # 2) Chirp Decomposition
-
-# # Set up Franka Model ------
-# config_path = '/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim_trajectories/config/chirp_config.yaml'
-# with open(config_path, 'r') as f:
-#    config = yaml.load(f, Loader=SafeLoader)
-# franka = thunder.thunder_franka()
-# thunder.load_params(franka, config['robot']['path'])
-
-
-
-
-# # Setup Identifier Object and Solve Identification Problem ----
-# identifier = Identifier(franka, config_path=config_path)
-# identifier.init()                      # 1_ load and process trajectory
-# identifier.solve_base_parameter()      # 2_ compute parameters in the base
-# chirp_BP = franka.get_par_REG_red().copy() # Save base parameters for comparison
-# print("Base Parameters estimated with Chirp trajectory:")
-# print(chirp_BP)
-# print(identifier.metrics['conditioning number'])
-# print(identifier.metrics['parameters relative standard deviation'])
-
-
-# # --------
-# # 3) Sinusoidal Decomposition
-
-# # Set up Franka Model ------
-# config_path = '/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim_trajectories/config/sinusoidal_config.yaml'
-# with open(config_path, 'r') as f:
-#    config = yaml.load(f, Loader=SafeLoader)
-# franka = thunder.thunder_franka()
-# thunder.load_params(franka, config['robot']['path'])
-
-
-
-
-# # Setup Identifier Object and Solve Identification Problem ----
-# identifier = Identifier(franka, config_path=config_path)
-# identifier.init()                      # 1_ load and process trajectory
-# identifier.solve_base_parameter()      # 2_ compute parameters in the base
-# sinusoidal_BP = franka.get_par_REG_red().copy() # Save base parameters for comparison
-# print("Base Parameters estimated with Sinusoidal trajectory:")
-# print(sinusoidal_BP)
-# print(identifier.metrics['conditioning number'])
-# print(identifier.metrics['parameters relative standard deviation'])
-"""Comparison of Base Parameters estimation using different trajectories and LaTeX table generation.
+"""
+    Comparison of Base Parameters estimation using different trajectories and LaTeX table generation.
 """
 import re
 import yaml
@@ -87,20 +9,21 @@ from utils.Identifier import *
 from utils.evaluation_utils import *
 import utils.import_thunder as thunder
 
+# Load Ground-Truth values
 franka_ground_truth = thunder.thunder_franka()
-thunder.load_params(franka_ground_truth, "/home/leo/Desktop/Base Inertial Parameter/src/thunder/franka_generatedFiles/param/franka_SH_par.yaml")
+thunder.load_params(franka_ground_truth, "./src/thunder/franka_generatedFiles/param/franka_SH_par.yaml")
 franka_ground_truth.set_par_REG(franka_ground_truth.get_dyn2reg())
 franka_ground_truth.set_par_REG_red(franka_ground_truth.get_reg2red())
 
 
-csv_filename =  '/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim_trajectories/bp_data.csv'
+csv_filename =  './src/examples/franka_sim_trajectories/bp_data.csv'
 
 # Dictionaries to hold results for table automation
 trajectories = ['Fourier', 'Chirp', 'Sinusoidal']
 config_files = {
-    'Fourier': '/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim_trajectories/config/fourier_config.yaml',
-    'Chirp': '/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim_trajectories/config/chirp_config.yaml',
-    'Sinusoidal': '/home/leo/Desktop/Base Inertial Parameter/src/examples/franka_sim_trajectories/config/sinusoidal_config.yaml'
+    'Fourier':    './src/examples/franka_sim_trajectories/config/fourier_config.yaml',
+    'Chirp':      './src/examples/franka_sim_trajectories/config/chirp_config.yaml',
+    'Sinusoidal': './src/examples/franka_sim_trajectories/config/sinusoidal_config.yaml'
 }
 
 cond_numbers = {}
@@ -151,14 +74,6 @@ def clean_cond(val):
         return float(val[0])
     return float(val)
 
-# Updated Header Row with Ground Truth element header included
-#header_row = (
-#    rf"\textbf{{Base Parameters}} & "
-#    rf"\textbf{{Ground Truth}} & "
-#    rf"\textbf{{Fourier}} ($\kappa={clean_cond(cond_numbers['Fourier']):.2f}$, $\sigma_{{\max}}={clean_cond(sigmas_max['Fourier']):.2f}$) & "
-#    rf"\textbf{{Chirp}} ($\kappa={clean_cond(cond_numbers['Chirp']):.2f}$, $\sigma_{{\max}}={clean_cond(sigmas_max['Chirp']):.2f}$) & "
-#    rf"\textbf{{Sinusoidal}} ($\kappa={clean_cond(cond_numbers['Sinusoidal']):.2f}$, $\sigma_{{\max}}={clean_cond(sigmas_max['Sinusoidal']):.2f}$) \\"
-#)
 header_row = (
     rf"\textbf{{Base Parameters}} & "
     rf"\textbf{{Ground Truth}} & "
@@ -170,8 +85,6 @@ csv_rows = ["parameter,gt,fourier_est,fourier_std,chirp_est,chirp_std,sine_est,s
 
 latex_str.append(header_row)
 latex_str.append(r"\hline")
-
-
 
 
 def get_float_val(data_source, idx):

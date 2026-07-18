@@ -36,8 +36,7 @@ def print_base_inertial_parameters(robot):
             coeff = beta[i, j]
             if coeff == 0:
                 continue
-
-            # Identify the parameter name
+            # get param name
             if j >= n * parPerLink:
                 p_name = f"{param_names[10]}_{j - n * parPerLink}"
             else:
@@ -48,14 +47,10 @@ def print_base_inertial_parameters(robot):
                 formatted_term = p_name
             else:
                 formatted_term = f"{abs(coeff):.2e} * {p_name}"
-
-            # Manage the sign and joining
             if not line_terms:
-                # First term of the line: only add '-' if negative
                 prefix = "-" if coeff < 0 else ""
                 line_terms.append(f"{prefix}{formatted_term}")
             else:
-                # Subsequent terms: always add ' + ' or ' - '
                 op = " - " if coeff < 0 else " + "
                 line_terms.append(f"{op}{formatted_term}")
 
@@ -66,7 +61,7 @@ def print_base_inertial_parameters(robot):
     return description_dict
 
 def get_big_Y_Tau(robot, traject):
-    ## YY oredred for [par_reg_red', friction_par']'
+    # YY oredred for [par_reg_red', friction_par']'
     Y_log = []
     for i in range(traject.t.shape[0]):
         q = traject.q[i,:]
@@ -202,8 +197,7 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
     metrics['error standard deviation'] = sigma_w_2
 
     # covariance matrix of estimated parameters
-    C_w = np.round(sigma_w_2 * pseudo_inv, decimals=20)                # <-- Check
-    # C_w = sigma_w_2 * np.linalg.inv(YY.T@YY)  # <-- Check
+    C_w = np.round(sigma_w_2 * pseudo_inv, decimals=20)
     metrics['parameters covariance matrix'] = C_w
 
     # relative std.dev. of estimated parameters
@@ -250,8 +244,8 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
     YY_weighted = np.zeros_like(YY)
     TTau_weighted = np.zeros_like(TTau)
     for i in range(robot.numJoints):
-        YY_weighted[i::robot.numJoints,:] = W_diag[i]*YY[i::robot.numJoints, :] # apply weight for ith raw
-        TTau_weighted[i::robot.numJoints] = W_diag[i]*TTau[i::robot.numJoints]  # apply weight for ith value
+        YY_weighted[i::robot.numJoints,:] = W_diag[i]*YY[i::robot.numJoints, :] # apply weight for i-th raw
+        TTau_weighted[i::robot.numJoints] = W_diag[i]*TTau[i::robot.numJoints]  # apply weight for i-th value
 
     # Compute inverted matrix and solution
     r = p                # index of last singular value
@@ -339,8 +333,8 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     YY_weighted = np.zeros_like(YY)
     TTau_weighted = np.zeros_like(TTau)
     for i in range(robot.numJoints):
-        YY_weighted[i::robot.numJoints,:] = W_diag[i]*YY[i::robot.numJoints, :] # apply weight for ith raw
-        TTau_weighted[i::robot.numJoints] = W_diag[i]*TTau[i::robot.numJoints]  # apply weight for ith value
+        YY_weighted[i::robot.numJoints,:] = W_diag[i]*YY[i::robot.numJoints, :] # apply weight for i-th raw
+        TTau_weighted[i::robot.numJoints] = W_diag[i]*TTau[i::robot.numJoints]  # apply weight for i-th value
 
     # Compute inverted matrix and solution
     r = p                 # num of parameters
@@ -395,7 +389,6 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
 
 
 def compute_essential(robot, traject, ratio_essential = 30):
-    #
     # ratio ideally in 0-30
     YY, TTau = get_big_Y_Tau(robot, traject)
     mask_essential = np.ones((YY.shape[1]), dtype=bool) # mask of essential parameters
@@ -541,9 +534,9 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
 
         # Center of mass
         c = casadi.SX(3,1)
-        c[0,0] = hat_par_DYN_sym[i*10 + 1]#/(m+POSITIVE_THRESH)
-        c[1,0] = hat_par_DYN_sym[i*10 + 2]#/(m+POSITIVE_THRESH)
-        c[2,0] = hat_par_DYN_sym[i*10 + 3]#/(m+POSITIVE_THRESH)
+        c[0,0] = hat_par_DYN_sym[i*10 + 1]
+        c[1,0] = hat_par_DYN_sym[i*10 + 2]
+        c[2,0] = hat_par_DYN_sym[i*10 + 3]
 
         # positive definite inertia matrix
         Ib = casadi.SX(3,3)
@@ -558,31 +551,6 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         Ib[2,2] = INERTIA_SCALE_FACTOR*hat_par_DYN_sym[i*10 + 9]
 
 
-        #Ib = Ib_reg - m @casadi_skew(c).T @ casadi_skew(c)
-
-        # !Criterio Sylvestr: det sottomatrici! ------
-        d[i,0] = det(Ib[:3,:3])
-        d[i,1] = det(Ib[:2,:2])
-        d[i,2] = det(Ib[:1,:1])
-        d[i,3] = det(Ib[2,2])
-        d[i,4] = det(Ib[1,1])
-
-        # g +=  [d[i,0],              d[i,1],                 d[i,2], d[i,3], d[i,4]]
-        # lb += [POSITIVE_THRESH,     POSITIVE_THRESH,        POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
-        # ub += [casadi.inf,          casadi.inf,             casadi.inf, casadi.inf, casadi.inf]
-
-        # g +=  [d[i,2], d[i,3], d[i,4]]
-        # lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
-        # ub += [casadi.inf, casadi.inf, casadi.inf]
-
-        # Triangular inequalities ------
-        #Ixx + Iyy - Izz > 0
-        #Ixx + Izz - Iyy > 0
-        #Izz + Iyy - Ixx > 0
-
-        tr[i] = casadi.trace(Ib)
-        l_max[i] = -minimum(-casadi.eig_symbolic(Ib))
-
         # Positive Pseudo-Definite Matrix constraint
         Sigma = 0.5*casadi.trace(Ib)*np.eye(3) - Ib
         P = casadi.vertcat(
@@ -591,37 +559,25 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
             )
 
 
-        eig[i,:] = casadi.eig_symbolic(P[1:,1:])
-        #eig[i,:] = f_powerm(Ib)
-        #l_max[i] = eig[i,2]
-        #l_max = SN(casadi.eig_symbolic(Ib), 3)
-
-        g +=  [eig[i,0], eig[i,1], eig[i,2]]
-        lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
-        ub += [casadi.inf, casadi.inf, casadi.inf]
-
-        # g +=  [tr[i] - 2*l_max[i]]
-        # lb += [POSITIVE_THRESH]
-        # ub += [casadi.inf     ]
-        # g +=  [Ib[0,0] + Ib[1,1] - Ib[2,2],             Ib[0,0] + Ib[2,2] - Ib[1,1],                 Ib[2,2] + Ib[1,1] - Ib[0,0]]
-        # lb += [POSITIVE_THRESH,                                 POSITIVE_THRESH,                             POSITIVE_THRESH]
-        # ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
-        # g +=  [eig[i,0] + eig[i,1] - eig[i,2],             eig[i,0] + eig[i,2] - eig[i,1],                 eig[i,2] + eig[i,1] - eig[i,0]]
-        # lb += [-POSITIVE_THRESH,                                 -POSITIVE_THRESH,                             -POSITIVE_THRESH]
-        # ub += [casadi.inf,                                      casadi.inf,                                  casadi.inf]
-
-
-        # Generate your v matrix (numerical check for sem. def. pos.)
         if NUMERICAL_EIGEN:
+            # Use numerical approximetion to asses def. pos. of P
             v_array = _generate_fibonacci_sphere(2000)
             for j in range(2000):
                 v = v_array[j,:].reshape(-1,1)
-                g += [casadi.mtimes(casadi.mtimes(v.T, Ib), v)]
+                g += [casadi.mtimes(casadi.mtimes(v.T, P[1:,1:]), v)]
                 lb += [POSITIVE_THRESH]
                 ub += [casadi.inf]
+        else:
+            # Use symbolic computation of eigenvalues to asses def. pos. of P
+            eig[i,:] = casadi.eig_symbolic(P[1:,1:])
+            g +=  [eig[i,0], eig[i,1], eig[i,2]]
+            lb += [POSITIVE_THRESH, POSITIVE_THRESH, POSITIVE_THRESH]
+            ub += [casadi.inf, casadi.inf, casadi.inf]
 
 
-
+        # build penalty cost function to use in SA method
+        tr[i] = casadi.trace(Ib)
+        l_max[i] = -minimum(-casadi.eig_symbolic(Ib))
         penalty_costraint += -minimum([0, (tr[i]/2 - l_max[i] - POSITIVE_THRESH) ], n=2)
 
         # Positive motor inertias
@@ -638,28 +594,18 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
     beta = np.round(robot.get_beta(), 16)
 
     if sigma_pi is not None and sigma_pi.shape[0] == sigma_pi.shape[1]:
-        # # Use covariance matrix of base parameters
-        # print(sigma_pi[:-n*2,:-n*2])
-        # print(np.linalg.matrix_rank(sigma_pi[:-n*2,:-n*2]))
-        # W_sigma_inv = np.linalg.pinv(sigma_pi[:-n*2,:-n*2])
-        # f_loss = (hat_par_REG_red_star - beta@hat_par_REG_sym).T @ W_sigma_inv @ (hat_par_REG_red_star - beta@hat_par_REG_sym)
-
-
-
         # Use covariance matrix of base parameters
         C_w = sigma_pi[:-n*2, :-n*2]
         U, S, Vh = np.linalg.svd(C_w)
-        tol = 1e-9 # tolerance for truncaated invertion
+        tol = 1e-9 # tolerance for truncated invertion
         valid_modes = S > tol
 
-        # Compute residual as (Le)'(Le) 
+        # Compute residual as (Le)'(Le)
         S_inv_sqrt = np.sqrt(1.0 / S[valid_modes])
         L = casadi.DM(np.diag(S_inv_sqrt) @ Vh[valid_modes, :])
         e = hat_par_REG_red_star - casadi.mtimes(beta, hat_par_REG_sym)
         weighted_residual = casadi.mtimes(L, e)
         f_loss = casadi.dot(weighted_residual, weighted_residual)
-
-
 
     elif sigma_pi is not None and sigma_pi.shape[0] != sigma_pi.shape[1]:
         # Weight with inverse of relative std.dev. of base parameters
@@ -713,19 +659,6 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
                                                      casadi.sumsqr(hat_par_DYN_sym[10*i+7] - par_DYN_link_i[7]) +   # Iyy
                                                      casadi.sumsqr(hat_par_DYN_sym[10*i+8] - par_DYN_link_i[8]) +   # Iyz
                                                      casadi.sumsqr(hat_par_DYN_sym[10*i+9] - par_DYN_link_i[9]))    # Izz
-            # REG version
-            # par_REG_link_i = hat_par_REG_0[10*i:10*(i+1)]
-
-            # f_mass      +=  w_link[i] @  casadi.sumsqr(hat_par_REG_sym[10*i] - par_REG_link_i[0]) # M
-            # f_com       +=  w_link[i] @ (casadi.sumsqr(hat_par_REG_sym[10*i+1]/hat_par_REG_sym[10*i] - par_REG_link_i[1]/par_REG_link_i[0]) + # CX
-            #                              casadi.sumsqr(hat_par_REG_sym[10*i+2]/hat_par_REG_sym[10*i] - par_REG_link_i[2]/par_REG_link_i[0]) + # CY
-            #                              casadi.sumsqr(hat_par_REG_sym[10*i+3]/hat_par_REG_sym[10*i] - par_REG_link_i[3]/par_REG_link_i[0]))  # CZ
-            # f_inertia   +=  w_link[i] @ (casadi.sumsqr(hat_par_REG_sym[10*i+4] - par_REG_link_i[4]) +   # Ixx
-            #                              casadi.sumsqr(hat_par_REG_sym[10*i+5] - par_REG_link_i[5]) +   # Ixy
-            #                              casadi.sumsqr(hat_par_REG_sym[10*i+6] - par_REG_link_i[6]) +   # Ixz
-            #                              casadi.sumsqr(hat_par_REG_sym[10*i+7] - par_REG_link_i[7]) +   # Iyy
-            #                              casadi.sumsqr(hat_par_REG_sym[10*i+8] - par_REG_link_i[8]) +   # Iyz
-            #                              casadi.sumsqr(hat_par_REG_sym[10*i+9] - par_REG_link_i[9]))    # Izz
     else:
         # Explicit definition of prior uncrtainities
         prior = load_prior(config_ident['prior_yaml'])
@@ -885,7 +818,7 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         hat_par_REG_optim = current_guess
         print("\n--- Simulated Annealing Complete ---")
 
-    # ---------------------------CasADi IPOT--------------------------------------------------------
+    # ---------------------------CasADi IPOPT--------------------------------------------------------
     elif config_ident.get('optimization','ipopt')=='ipopt':# Solver
         solver = casadi.nlpsol('sol', 'ipopt', prob, opts)
         sol = solver(x0=hat_par_REG_0, lbg=lb,ubg=ub)
@@ -1102,7 +1035,6 @@ def plot_base_identification(robot, traject, metrics, block = True,
             ax.grid(True)
             if i == 0:
                 ax.legend()
-            # Axis-Style (title_size = 20, lable_size = 16, tick_size = 14, legend_size = 13)
             ax.title.set_fontsize(title_size)
             ax.xaxis.label.set_fontsize(lable_size)
             ax.yaxis.label.set_fontsize(lable_size)
@@ -1204,8 +1136,6 @@ def plot_identification(robot, traject, metrics, title = None,block = True,
             plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]} (RMSE: {rmse:.4f} Nm)\nConditioning Number (κ): {cond_num:.3f}| {sigma_max_title}: {sigma_max:.3f}', 
                         fontsize=16, fontweight='bold')
         except Exception as e:
-            #plt.suptitle(f'Torque Estimation Results (RMSE: {rmse:.4f} Nm)\nConditioning Number (κ): {cond_num}| {sigma_max_title}: {sigma_max}', 
-            #        fontsize=16, fontweight='bold')
             plt.suptitle(f'Torque Estimation Results (RMSE: {rmse:.4f} Nm)', 
                     fontsize=16, fontweight='bold')
     for i in range(n):
@@ -1220,7 +1150,6 @@ def plot_identification(robot, traject, metrics, title = None,block = True,
         ax.grid(True)
         if i == 0:
             ax.legend()
-        # Axis-Style (title_size = 20, lable_size = 16, tick_size = 14, legend_size = 13)
         ax.title.set_fontsize(title_size)
         ax.xaxis.label.set_fontsize(lable_size)
         ax.yaxis.label.set_fontsize(lable_size)
@@ -1280,7 +1209,7 @@ def plot_LS_solution(hat_pi, metrics, pi_gt = None, block = True,
         for text in legend.get_texts():
             text.set_fontsize(legend_size)
     # suptitle not used here but keep title consistent
-    ax.title.set_fontsize(font.suptitle)
+    ax.title.set_fontsize(title_size)
 
 
     plt.tight_layout()
@@ -1295,7 +1224,6 @@ def load_prior(prior_path):
         except yaml.YAMLError as e:
             raise ValueError(f"Error parsing YAML file: {e}")
 
-    # ---  Checks ---
     if 'robot' not in prior or 'prior' not in prior['robot']:
         raise KeyError(f"Prior file is not well-formatted")
 

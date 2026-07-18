@@ -6,15 +6,15 @@ np.set_printoptions(precision=4, suppress=True, linewidth=200)
 opts = {
    "ipopt": {
          "tol": 1e-8,
-         "constr_viol_tol": 1e-15,
-         "acceptable_tol": 1e-15,
-         "dual_inf_tol": 1e-15,
-         "compl_inf_tol": 1e-15,
+         "constr_viol_tol": 1e-8,
+         "acceptable_tol": 1e-8,
+         "dual_inf_tol": 1e-8,
+         "compl_inf_tol": 1e-8,
          "max_iter": 50000,
    }
 }
 # Set up Finger Model ------
-config_path = '/home/leo/Desktop/Base Inertial Parameter/src/examples/allegro_hand/config/ahand_finger_config.yaml'
+config_path = './src/examples/allegro_hand/config/ahand_finger_config.yaml'
 with open(config_path, 'r') as f:
    config = yaml.load(f, Loader=SafeLoader)
 finger = thunder.thunder_ahand_finger()
@@ -27,13 +27,13 @@ identifier.solve_base_parameter()      # 2_ compute parameters in the base
 print_base_inertial_parameters(finger) # print base inertial parameters before identification
 print(finger.get_par_REG_red())
 fig_base = plot_base_identification(robot=finger, traject=identifier.trajectory, metrics=identifier.metrics)
-fig_base.savefig(os.path.join("/home/leo/Desktop/Base Inertial Parameter/src/examples/allegro_hand/finger/results/base", 'identification_result.png'), bbox_inches='tight', dpi=300)
+fig_base.savefig(os.path.join("./src/examples/allegro_hand/finger/results/base", 'identification_result.png'), bbox_inches='tight', dpi=300)
 plt.show(block=True)
 
-identifier.solve_full_dynamics()       # 3_ compute all dynamics parameters
+identifier.solve_full_dynamics(opts=opts)       # 3_ compute all dynamics parameters
 check_feasibility(finger)
 
 identifier.print_table()               # 4_ print identified dynamics parameters
-identifier.save_plot(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/allegro_hand/finger/results")     # 5_ save plot
-identifier.export(path = "/home/leo/Desktop/Base Inertial Parameter/src/examples/allegro_hand/finger/results")        # 6_ export in thunder config yaml file
+identifier.save_plot(path = "./src/examples/allegro_hand/finger/results")     # 5_ save plot
+identifier.export(path = "./src/examples/allegro_hand/finger/results")        # 6_ export in thunder config yaml file
 

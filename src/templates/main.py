@@ -1,7 +1,7 @@
 """Estimate reduced inertial parameters from ROS2 bag joint data.
 
 This script reads joint states from a recorded exciting trajectory
-filters the signals, computes the dynamic regressor for a reduced 
+filters the signals, computes the dynamic regressor for a reduced
 parameter set, and estimates parameters by least-squares.
 
 """
@@ -17,13 +17,10 @@ robot = thunder.thunder_robot()
 thunder.load_params(robot, config['robot']['path'])
 
 # Setup and solve identification Problem ----
-Identifier = Identifier(robot, config_path=config_path)
-Identifier.init()                      # 1_ load and process trajectory
-Identifier.solve_base_parameter()      # 2_ compute parameters in the base
-Identifier.solve_full_dynamics()       # 3_ compute all dynamics parameters
-Identifier.print_table()               # 4_ print identified dynamics parameters
-Identifier.save_plot()                 # 5_ save plot
-Identifier.export()                    # 6_ export in thunder config yaml file
-
-
-# Identifier.trajectory.export2csv("/home/leo/Desktop/Base Inertial Parameter/src/examples/data")
+identifier = Identifier(robot, config_path=config_path)
+identifier.init()                      # 1_ load and process trajectory
+identifier.solve_base_parameter()      # 2_ compute parameters in the base
+identifier.solve_full_dynamics()       # 3_ compute all dynamics parameters
+identifier.print_table()               # 4_ print identified dynamics parameters
+identifier.save_plot()                 # 5_ save plot
+identifier.export()                    # 6_ export in thunder config yaml file

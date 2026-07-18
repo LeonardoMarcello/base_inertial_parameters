@@ -23,13 +23,8 @@ processing:
   #flip_torques: true
 
 identification:
-  method: 'WLS|prior' # OLS, WLS, OLS|prior, WLS|prior
-  conditioning_ratio: 200 # truncate SVD inverse by forcing this conditioning ( Default: None)
-  optimization: 'ipopt'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
-  # Simulated annealing ----
-  k: 12               # max number of outer iteration for simulated annealing solver
-  Q: 100              # number of iteration in simmulated annealing
-
+  method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
+  conditioning_ratio: 500 # truncate SVD inverse by forcing this conditioning ( Default: None)
 
   # CasADi optimizer ----
   positive_threshold: 1e-10 # positive threshold for constrained problem definition
@@ -43,4 +38,4 @@ identification:
     CoM: 3e-4     # as CoM std.dev [m]
     inertia: 1e-7  # as Inertia std.dev [Kg/m^2]
 
-    link: [1, 1, 1, 1]
+    link: [0.25, 0.25, 0.25, 0.25]

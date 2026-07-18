@@ -1,7 +1,7 @@
 #!/bin/bash
 # Convert bag from ROS1 to ROS2
 # Usage:
-# ./convertbag.sh '/home/leo/Desktop/franka_ros1_ws/src/panda_controllers/rosbag/backstepping_35s_adpDir_false_RED_true_L_1_02_R_01_Kd_10_5_2_kinDH.bag' './rosbag/backstepping_35s_adpDir_false_RED_true_L_1_02_R_01_Kd_10_5_2_kinDH'
+# ./convertbag.sh '/path/to/ros1/bag/name.bag' 'path/to/new/ros2/bag'
 
 # --- VARIABLES ---
 # Edit these paths or pass them as arguments

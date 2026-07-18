@@ -50,19 +50,20 @@ def plot_eval_identification(robot, metrics, traject, robot_gt = None, block = T
     delta_tau_GT = np.array(delta_tau_GT)
 
 
-    rmse = np.sqrt(np.mean(np.sum(delta_tau**2, axis=1))) # RMSE = Sqrt{ 1/M Sum{||e||_2}  }
+    rmse = np.sqrt(np.mean(np.sum(delta_tau**2, axis=1)))
     print(f"RMSE: {rmse} [Nm]" )
 
     cond_num = metrics['conditioning number']
-    # --- 1. Plot tau ---
+
+    # Effort Plot
     colors = {
-        'estimate': '#D62728',   # Strong Red
-        'measured': '#1F77B4',   # Strong Blue
-        'ground-truth':     '#2CA02C',   # Forest Green
+        'estimate': '#D62728',
+        'measured': '#1F77B4',
+        'ground-truth':     '#2CA02C',
     }
     n = robot.numJoints
     cols = int(np.sqrt(n)) 
-    rows = (n + cols - 1) // cols  # Ceiling division to handle odd numbers
+    rows = (n + cols - 1) // cols
     JOINT_NAMES = traject.config['trajectory']['joints']
 
     fig = plt.figure(figsize=(12,8))
@@ -82,7 +83,6 @@ def plot_eval_identification(robot, metrics, traject, robot_gt = None, block = T
         ax.grid(True)
         if i == 0:
             ax.legend(loc='lower right')
-        # Axis-Style (title_size = 20, lable_size = 16, tick_size = 14, legend_size = 13)
         ax.title.set_fontsize(title_size)
         ax.xaxis.label.set_fontsize(lable_size)
         ax.yaxis.label.set_fontsize(lable_size)
@@ -125,7 +125,6 @@ def plot_eval_LS_solution(hat_pi, metrics, robot_gt = None, block = True,
     ax.set_xticks(x)
     ax.legend(loc='lower right')
     ax.grid(True, linestyle='--', alpha=0.6)
-    # Axis-Style (title_size = 20, lable_size = 16, tick_size = 14, legend_size = 13)
     ax.title.set_fontsize(title_size)
     ax.xaxis.label.set_fontsize(lable_size)
     ax.yaxis.label.set_fontsize(lable_size)
@@ -185,7 +184,6 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
         print(r"\begin{table}[htpb]")
         print(r"\centering")
         print(rf"\caption{{{title}}}")
-        # Requires \usepackage{graphicx} in your LaTeX preamble
         print(r"\resizebox{\textwidth}{!}{%")
         print(rf"\begin{{tabular}}{{{col_format}}}")
         print(r"\hline")
@@ -198,17 +196,16 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
         for i, row in enumerate(params):
             row_strs = []
             for val in row:
-                # Convert to LaTeX scientific notation (e.g. 1.23e-04 -> $1.23 \times 10^{-4}$)
                 val_e = f"{val:.6e}"
                 base, exp = val_e.split('e')
-                exp_int = int(exp) # Removes leading zeros from exponent
+                exp_int = int(exp)
                 row_strs.append(f"${base} \\times 10^{{{exp_int}}}$")
             print(f"{i} & " + " & ".join(row_strs) + r" \\")
         print(r"\hline")
         print(r"\end{tabular}%")
         print(r"}")
         print(r"\end{table}")
-        print() # Add spacing between tables
+        print()
 
         if robot_ground_truth is not None:
             # ground-truth params
@@ -240,7 +237,6 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             print(r"\begin{table}[htpb]")
             print(r"\centering")
             print(rf"\caption{{{title}}}")
-            # Requires \usepackage{graphicx} in your LaTeX preamble
             print(r"\resizebox{\textwidth}{!}{%")
             print(rf"\begin{{tabular}}{{{col_format}}}")
             print(r"\hline")
@@ -253,10 +249,9 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             for i, row in enumerate(gt_params):
                 row_strs = []
                 for val in row:
-                    # Convert to LaTeX scientific notation (e.g. 1.23e-04 -> $1.23 \times 10^{-4}$)
                     val_e = f"{val:.6e}"
                     base, exp = val_e.split('e')
-                    exp_int = int(exp) # Removes leading zeros from exponent
+                    exp_int = int(exp)
                     row_strs.append(f"${base} \\times 10^{{{exp_int}}}$")
 
                 print(f"{i} & " + " & ".join(row_strs) + r" \\")
@@ -265,7 +260,7 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             print(r"\end{tabular}%")
             print(r"}")
             print(r"\end{table}")
-            print() # Add spacing between tables
+            print()
 
             # 3) Error ------------------------
             title = "Variation from ground-truth (absolute error)"
@@ -273,7 +268,6 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             print(r"\begin{table}[htpb]")
             print(r"\centering")
             print(rf"\caption{{{title}}}")
-            # Requires \usepackage{graphicx} in your LaTeX preamble
             print(r"\resizebox{\textwidth}{!}{%")
             print(rf"\begin{{tabular}}{{{col_format}}}")
             print(r"\hline")
@@ -286,10 +280,9 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             for i, row in enumerate(e_model):
                 row_strs = []
                 for val in row:
-                    # Convert to LaTeX scientific notation (e.g. 1.23e-04 -> $1.23 \times 10^{-4}$)
                     val_e = f"{val:.6e}"
                     base, exp = val_e.split('e')
-                    exp_int = int(exp) # Removes leading zeros from exponent
+                    exp_int = int(exp)
                     row_strs.append(f"${base} \\times 10^{{{exp_int}}}$")
 
                 print(f"{i} & " + " & ".join(row_strs) + r" \\")
@@ -298,7 +291,7 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
             print(r"\end{tabular}%")
             print(r"}")
             print(r"\end{table}")
-            print() # Add spacing between tables
+            print()
     else:
         # Motor inertia
         if par_per_link == 11:
@@ -452,7 +445,6 @@ def plot_link_solution(robot, robot_gt, n, title = None, block = True,
     axes[2].legend()
     axes[2].grid(axis='y', linestyle='--', alpha=0.6)
     for ax in axes:
-        # Axis-Style (title_size = 20, lable_size = 16, tick_size = 14, legend_size = 13)
         ax.title.set_fontsize(title_size)
         ax.xaxis.label.set_fontsize(lable_size)
         ax.yaxis.label.set_fontsize(lable_size)
@@ -490,11 +482,6 @@ def check_feasibility(robot):
         casadi_eig = f_powerm(Ib)
         if not (np.trace(Ib)/2 - l_max > 0): 
             print(f"Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - l_max})")
-            # print(f"CasADi - Inertia of link {i} do not pass matrix inequality test. (resid: {np.trace(Ib)/2 - casadi_eig[2]})")
-            # print(f"num - eig")
-            # print(eig)
-            # print(f"CasADi - eig")
-            # print(casadi_eig)
 
         # Determinant Test
         ds = [det(Ib[:3,:3]), det(Ib[:2,:2]), det(Ib[:1,:1])]

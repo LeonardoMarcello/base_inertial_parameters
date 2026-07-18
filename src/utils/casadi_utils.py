@@ -74,7 +74,7 @@ def det(A):
                  + A[0, 2]*(A[1, 0]*A[2, 1] - A[1, 1]*A[2, 0]))
      else:
          raise NotImplementedError("Supported dimensions: 1x1, 2x2, 3x3")
- # Skew-symmetric matrix
+# Skew-symmetric matrix
 def skew(v):
      return np.array([[0, -v[2], v[1]],
                       [v[2], 0, -v[0]],

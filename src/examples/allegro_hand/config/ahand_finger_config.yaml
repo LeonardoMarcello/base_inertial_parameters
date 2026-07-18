@@ -1,21 +1,15 @@
 robot:
-  path: '/home/leo/Desktop/Base Inertial Parameter/src/thunder/ahand_finger_generatedFiles/ahand_finger_par.yaml'
+  path: './src/thunder/ahand_finger_generatedFiles/ahand_finger_par.yaml'
 
 trajectory:
   type: 'ros2'
-  bag: '/home/leo/Desktop/allegro_hand_ros2_ws/workdir/allegro_hand_4traject_bag'
+  bag: './rosbag/allegro_hand_4traject_bag'
   topic: '/allegroHand_0/joint_states'
   joints: ['joint_4_0', 'joint_5_0', 'joint_6_0', 'joint_7_0']  # Middle joints
   interval: [200, 500] # [s]
 
-# processing:
-#   cut_off_frequency: 30 # [rad/s]
-#   butterworth_order: 5
-#   apply_decimation: true
-#   decimate_factor: 10
-#   compute_velocities: true # wheter use or compute joint velocities
 processing:
-  pipeline:   # Which pipeline apply for data processing ['filtering','differentiating','decimating'] 
+  pipeline:
      - 'decimating'
      - 'filtering'
      - 'differentiating'
@@ -23,20 +17,15 @@ processing:
      - 'filtering'
   cut_off_frequency: 35 # [rad/s]
   compute_velocities: true
-  butterworth_order: 5 #5
+  butterworth_order: 5
   apply_decimation: false
   decimate_factor: 10
-  #flip_torques: true
 
 
 identification:
   method: 'WLS' # OLS, WLS, OLS|prior, WLS|prior
   conditioning_ratio: 500 # truncate SVD inverse by forcing this conditioning ( Default: None)
   optimization: 'ipopt'  # 'ipopt', 'SA' - Optimization method for maximum-likelihood estimation
-  # Simulated annealing ----
-  k: 12               # max number of outer iteration for simulated annealing solver
-  Q: 100              # number of iteration in simmulated annealing
-
 
   # CasADi optimizer ----
   positive_threshold: 1e-10 # positive threshold for constrained problem definition
@@ -44,10 +33,16 @@ identification:
   numerical_eigen: true     # whether to use numerical check for semidefinite positiveness of inertia matrix
 
   weight:
-    loss: 5 # gain factor for base parameters optimization
+    # loss: 5 # gain factor for base parameters optimization
 
-    mass: 1e-2     # as mass std.dev [Kg]
-    CoM: 3e-3     # as CoM std.dev [m]
-    inertia: 1e-7  # as Inertia std.dev [Kg/m^2]
+    # mass: 1e-2     # as mass std.dev [Kg]
+    # CoM: 3e-3     # as CoM std.dev [m]
+    # inertia: 1e-7  # as Inertia std.dev [Kg/m^2]
+
+    loss: 1
+
+    mass: 2.236e-2      # as mass std.dev [Kg]
+    CoM: 6.708e-3       # as CoM std.dev [m]
+    inertia: 2.236e-7   # as Inertia std.dev [Kg/m^2]
 
     link: [1, 1, 1, 1]

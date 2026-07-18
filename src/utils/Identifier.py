@@ -28,9 +28,6 @@ class Identifier():
             self.trajectory.df = TrajectoryManager.read_csv(config_traject['data'])
 
         #  process data
-        #config_traject_interval = config_traject.get('interval', (5,100))
-        #apply_decimation = config_processing.get('apply_decimation', False)
-        #self.trajectory.process(interval_min=config_traject_interval[0], interval_max=config_traject_interval[1], apply_decimation=apply_decimation)  
         if self.config['processing'].get('pipeline',False):
             self.trajectory.process_pipeline()
         else:
@@ -156,7 +153,6 @@ class Identifier():
             print(r"\begin{table}[htpb]")
             print(r"\centering")
             print(rf"\caption{{{title}}}")
-            # Requires \usepackage{graphicx} in your LaTeX preamble
             print(r"\resizebox{\textwidth}{!}{%")
             print(rf"\begin{{tabular}}{{{col_format}}}")
             print(r"\hline")
@@ -169,17 +165,16 @@ class Identifier():
             for i, row in enumerate(params):
                 row_strs = []
                 for val in row:
-                    # Convert to LaTeX scientific notation (e.g. 1.23e-04 -> $1.23 \times 10^{-4}$)
                     val_e = f"{val:.6e}"
                     base, exp = val_e.split('e')
-                    exp_int = int(exp) # Removes leading zeros from exponent
+                    exp_int = int(exp)
                     row_strs.append(f"${base} \\times 10^{{{exp_int}}}$")
                 print(f"{i} & " + " & ".join(row_strs) + r" \\")
             print(r"\hline")
             print(r"\end{tabular}%")
             print(r"}")
             print(r"\end{table}")
-            print() # Add spacing between tables
+            print()
         else:
             # 1) Optimized params
             print(f"Optimized parameters")
@@ -272,8 +267,6 @@ class Identifier():
         if 'path' not in config_robot:
             raise KeyError("Missing 'path' in the 'robot' section.")
         if not os.path.isfile(config_robot['path']):
-            # Using a warning instead of an error here just in case you are 
-            # generating this file dynamically later in the pipeline.
             print(f"[WARNING] Robot parameter file not found at: {config_robot['path']}")
 
         # --- 2. Trajectory Checks ---
