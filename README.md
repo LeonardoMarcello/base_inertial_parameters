@@ -30,16 +30,16 @@ The **Results** are stored in a folder containing the following:
 ```bash
 git clone https://github.com/LeonardoMarcello/Dynamic-Parameter-Identification.git
 
-cd base_inertial_parameters
+cd dynamic-parameter-identification
 
-docker build -t base-inertial-parameters:latest -f docker/Dockerfile .
+docker build -t dynamic-parameter-identification:latest -f docker/Dockerfile .
 ```
 
 ### Option 2: Using Conda virtual environment
 ```bash
 git clone https://github.com/LeonardoMarcello/Dynamic-Parameter-Identification.git
 
-cd dynamic_parameters_identification
+cd dynamic_parameter_identification
 
 conda env create -f environment.yaml
 conda activate dynamic_parameters_identification
@@ -53,11 +53,12 @@ pip install -e .
 
 This project contains some example of the **dynamic parameter identification** on real hardware:
 - **7DoF collaporative robot, the Franka Emika Panda** The identification of the dynamiks of the Franka Emika Panda Manipulator
-- **Anthropomorphic robotic hand, the Wonkik Allegro Hand** The identification of theparameters for the fingers of the Wonik Allegro Hand V5
---
-The following data were collected in Gazebo simualtive environment for accuracy evaluation
+- **Anthropomorphic robotic hand, the Wonkik Allegro Hand** The identification of theparameters for the fingers of the Wonik Allegro Hand V5 
+ 
+ 
+The following data were collected in Gazebo simualtive environment for accuracy evaluation: 
 - **Franka Panda with payload** The Identification of the dynamics of a SoftHand robotic platform mounted on the end-effector of the Franka Emika Panda Manipulator
-- **Franka Panda estimation with different trajectorries** The Identification of the dynamics of the Franka Emika Panda Manipulator is compared across 3 trajectories: Fourier, chirp, and Sinusoidal
+- **Franka Panda estimation with different trajectories** The Identification of the dynamics of the Franka Emika Panda Manipulator is compared across 3 trajectories: Fourier, chirp, and Sinusoidal
 
 The example files ar located
 ```

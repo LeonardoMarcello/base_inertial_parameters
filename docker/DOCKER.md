@@ -8,13 +8,13 @@ This project includes Docker configuration for Ubuntu 24.04 containerization.
 ## Building the Docker Image
 
 ```bash
-docker build -t base-inertial-parameters:latest -f docker/Dockerfile .
+docker build -t dynamic-parameter-identification:latest -f docker/Dockerfile .
 ```
 
 ## Running the Container
 
 ```bash
-docker run -it --rm -v $(pwd):/base_inertial_parameters base-inertial-parameters:latest python src/examples/franka_testing/main_test.py
+docker run -it --rm -v $(pwd):/dynamic-parameter-identification dynamic-parameter-identifications:latest python src/examples/franka_real/franka_identification.py
 ```
 
 ## Environment Details

@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name="dynamic_parameters_identification"
+name="dynamic_parameter_identification"
 version="0.1.0"
 description="Dynamic Parameters Identification Package"
 dependencies = [

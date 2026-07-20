@@ -34,8 +34,7 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
 
 # Create a non-root user for development
 RUN useradd -m -s /bin/bash developer && \
-    chown -R developer:developer /base_inertial_parameters
-
+    chown -R developer:developer /dynamic-parameter-identification
 # Switch to non-root user
 USER developer
 
