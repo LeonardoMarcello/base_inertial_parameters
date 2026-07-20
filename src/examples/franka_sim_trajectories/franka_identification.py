@@ -10,7 +10,7 @@ from utils.evaluation_utils import *
 import utils.import_thunder as thunder
 
 # Load Ground-Truth values
-franka_ground_truth = thunder.thunder_franka()
+franka_ground_truth = thunder.thunder_['franka']()
 thunder.load_params(franka_ground_truth, "./src/thunder/franka_generatedFiles/param/franka_SH_par.yaml")
 franka_ground_truth.set_par_REG(franka_ground_truth.get_dyn2reg())
 franka_ground_truth.set_par_REG_red(franka_ground_truth.get_reg2red())
@@ -40,7 +40,7 @@ for traj in trajectories:
     with open(config_files[traj], 'r') as f:
        config = yaml.load(f, Loader=SafeLoader)
     
-    franka = thunder.thunder_franka()
+    franka = thunder.thunder_['franka']()
     thunder.load_params(franka, config['robot']['path'])
 
     identifier = Identifier(franka, config_path=config_files[traj])

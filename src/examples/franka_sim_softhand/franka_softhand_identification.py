@@ -8,22 +8,14 @@ import utils.import_thunder as thunder
 
 np.random.seed(41)
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
-opts = {
-   "ipopt": {
-         "tol": 1e-15,
-         "constr_viol_tol": 1e-15,
-         "acceptable_tol": 1e-15,
-         "dual_inf_tol": 1e-15,
-         "compl_inf_tol": 1e-15,
-         "max_iter": 50000,
-   }
-}
+
+
 # Set up Franka Model ----------------------------------
 config_path = './src/examples/franka_sim_softhand/config/softhand_config.yaml'
 with open(config_path, 'r') as f:
    config = yaml.load(f, Loader=SafeLoader)
-franka = thunder.thunder_franka()
-franka_ground_truth = thunder.thunder_franka()
+franka = thunder.thunder_['franka']()
+franka_ground_truth = thunder.thunder_['franka']()
 
 # Initialize robot model
 thunder.load_params(franka, config['robot']['path'])

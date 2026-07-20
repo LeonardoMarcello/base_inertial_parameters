@@ -19,9 +19,19 @@ plt.rcParams.update({
 import casadi
 from utils.casadi_utils import *
 from utils.loader_utils import *
+from typing import Any, Optional
 
+def print_base_inertial_parameters(robot:Any) -> dict:
+    """
+    Display the Base inertial Parameters of a robot model by name.
 
-def print_base_inertial_parameters(robot):
+    Args:
+        robot (Any): robot model imported by user build with thunder dynamic tool
+                     (e.g., thunder_franka).
+
+    Returns:
+        dict: A dictionary mapping row indices to lists of formatted parameter strings.
+    """
     param_names = ['M','MX','MY','MZ','XX','XY','XZ','YY','YZ','ZZ','Ia']
 
     beta = np.round(robot.get_beta(), 10)
@@ -60,8 +70,26 @@ def print_base_inertial_parameters(robot):
     print(description)
     return description_dict
 
-def get_big_Y_Tau(robot, traject):
-    # YY oredred for [par_reg_red', friction_par']'
+def get_big_Y_Tau(robot:Any, traject:TrajectoryManager) -> tuple[np.ndarray, np.ndarray, list[bool]]:
+    """
+    Compute the stacked regressor matrix and measurement vector given an exciting trajectory
+    such that: TTau = YY * pi
+
+    Args:
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka).
+        trajec (TrajectoryManager): Managed tracking object containing joint positions (q),
+                                    velocities (dq), accelerations (ddq), and measured
+                                    torques (tau) over time.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, list[bool]]: A tuple containing:
+            - YY (np.ndarray): The stacked regressor matrix of shape (N * numJoints, numParams).
+            - TTau (np.ndarray): The stacked torque measurement vector of shape (N * numJoints, 1).
+            - mask (list[bool]): A boolean index list indicating which base inertial parameters
+              are sufficiently excited (observable) across the given trajectory.
+    """
+    # YY is oredred for multiplication with par =  [par_reg_red', friction_par']'
     Y_log = []
     for i in range(traject.t.shape[0]):
         q = traject.q[i,:]
@@ -98,7 +126,30 @@ def get_big_Y_Tau(robot, traject):
 
     return YY, TTau, observable_parameters_mask
 
-def solve_OLS(robot, traject, conditioning_ratio = None):
+def solve_OLS(robot: Any, traject: TrajectoryManager, conditioning_ratio: Optional[float] = None) -> tuple[np.ndarray, dict]:
+    """
+    Compute the estimation of base inertial parameters via Ordinary Least Squares (OLS)
+    using the stacked regressor matrix and torque measurements:
+        pi_OLS = pinv(Y) @ tau = (Y.T @ Y)^-1 @ Y.T @ tau
+
+    Args:
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka).
+        traject (TrajectoryManager): Managed tracking object containing joint positions (q),
+                                    velocities (dq), accelerations (ddq), and measured
+                                    torques (tau) over time.
+        conditioning_ratio (float, optional): Threshold ratio for SVD truncation during the 
+                                              pseudo-inverse calculation. Singular values smaller 
+                                              than this ratio multiplied by the largest singular 
+                                              value will be discarded to mitigate ill-conditioning. 
+                                              Defaults to None (standard pseudo-inverse).
+
+    Returns:
+        tuple[np.ndarray, dict]: A tuple containing:
+            - hat_pi (np.ndarray): OLS estimate vector of the identifiable base inertial parameters.
+            - metrics (dict): A dictionary containing quality metrics of the estimation 
+                              (e.g., condition number, standard deviation, residual error).
+    """
     # > Compute pi_OLS = (Y.t @ Y)^-1 @ Y.t @ tau
     YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
     p = YY.shape[1]     # all values
@@ -153,8 +204,29 @@ def solve_OLS(robot, traject, conditioning_ratio = None):
 
     return hat_pi, metrics
 
-def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
-    # > Compute pi_OLS = (Y.t @ Y)^-1 @ Y.t @ tau
+def solve_OLS_with_prior(robot:Any, traject:TrajectoryManager, conditioning_ratio:Optional[float] = None) -> tuple[np.ndarray, dict]:
+    """
+    Compute estimation of base inertial parameters via Ordinary Least Squares and using prior 
+        pi_OLSprior = pi_prior + (Y.t @ Y)^-1 @ Y.t @ (tau - Y pi_prior)
+    
+    Args:
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka).
+        traject (TrajectoryManager): Managed tracking object containing joint positions (q),
+                                    velocities (dq), accelerations (ddq), and measured
+                                    torques (tau) over time.
+        conditioning_ratio (float, optional): Threshold ratio for SVD truncation during the 
+                                              pseudo-inverse calculation. Singular values smaller 
+                                              than this ratio multiplied by the largest singular 
+                                              value will be discarded to mitigate ill-conditioning. 
+                                              Defaults to None (standard pseudo-inverse).
+
+    Returns:
+        tuple[np.ndarray, dict]: A tuple containing:
+            - hat_pi (np.ndarray): OLS estimate vector of the identifiable base inertial parameters.
+            - metrics (dict): A dictionary containing quality metrics of the estimation 
+                              (e.g., condition number, standard deviation, residual error).
+    """
     hat_pi_ref = np.hstack([robot.get_par_REG_red(), robot.get_par_Dl()]).reshape(-1,1)
     YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
     p = YY.shape[1]     # all values
@@ -208,17 +280,33 @@ def solve_OLS_with_prior(robot, traject, conditioning_ratio = None):
 
     return hat_pi, metrics
 
-def solve_WLS(robot, traject, conditioning_ratio = None):
+def solve_WLS(robot:Any, traject:TrajectoryManager, conditioning_ratio:Optional[float] = None) -> tuple[np.ndarray, dict]:
     """
-    Weight differently each joint,
-      Solve:
-        W @ Tau_w = W @ Y @ Pi
+    Compute estimation of base inertial parameters via weighted Least Squares
+    Each joint is weighted differently with 
+        Z = blkdiag( diag(rho1, ..., rhon), diag(rho1, ..., rhon), ..., diag(rho1, ..., rhon)) in NbxNb
 
-    with W = blkdiag( diag(rho1, ..., rhon), diag(rho1, ..., rhon), ..., diag(rho1, ..., rhon)) in NbxNb
+        pi_WLS = (Y.t @ Z.t @ Z @ Y)^-1 @ Y.t @ Z.t @ tau
+    
+    Args:
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka).
+        traject (TrajectoryManager): Managed tracking object containing joint positions (q),
+                                    velocities (dq), accelerations (ddq), and measured
+                                    torques (tau) over time.
+        conditioning_ratio (float, optional): Threshold ratio for SVD truncation during the 
+                                              pseudo-inverse calculation. Singular values smaller 
+                                              than this ratio multiplied by the largest singular 
+                                              value will be discarded to mitigate ill-conditioning. 
+                                              Defaults to None (standard pseudo-inverse).
+
+    Returns:
+        tuple[np.ndarray, dict]: A tuple containing:
+            - hat_pi (np.ndarray): OLS estimate vector of the identifiable base inertial parameters.
+            - metrics (dict): A dictionary containing quality metrics of the estimation 
+                              (e.g., condition number, standard deviation, residual error).
     """
-
-    # > Compute pi_WLS = (Y.t @ G.t @ G @ Y)^-1 @ Y.t @ G.t @ tau
-    # OLS solution for residuals
+    # OLS solution for residuals (weight computation)
     YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
     hat_pi, _ = solve_OLS(robot, traject, conditioning_ratio=conditioning_ratio)
     # computation of weighting matrix
@@ -298,15 +386,34 @@ def solve_WLS(robot, traject, conditioning_ratio = None):
 
     return hat_pi, metrics
 
-def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
+def solve_WLS_with_prior(robot:Any, traject:TrajectoryManager, conditioning_ratio:Optional[float] = None) -> tuple[np.ndarray, dict]:
     """
-    Weight differently each joint,
-      Solve:
-        W @ Tau_w = W @ Y @ Pi
-    """
-    # Compute pi_WLS = (Y.t @ G.t @ G @ Y)^-1 @ Y.t @ G.t @ tau
+    Compute estimation of base inertial parameters via weighted Least Squares and using prior
+    Each joint is weighted differently with 
+        Z = blkdiag( diag(rho1, ..., rhon), diag(rho1, ..., rhon), ..., diag(rho1, ..., rhon)) in NbxNb
 
-    # OLS solution for residuals
+        pi_WLSprior = pi_prior + (Y.t @ Z.t @ Z @ Y)^-1 @ Y.t @ Z.t @ (tau - Y pi_prior)
+    
+    Args:
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka).
+        traject (TrajectoryManager): Managed tracking object containing joint positions (q),
+                                    velocities (dq), accelerations (ddq), and measured
+                                    torques (tau) over time.
+        conditioning_ratio (float, optional): Threshold ratio for SVD truncation during the 
+                                              pseudo-inverse calculation. Singular values smaller 
+                                              than this ratio multiplied by the largest singular 
+                                              value will be discarded to mitigate ill-conditioning. 
+                                              Defaults to None (standard pseudo-inverse).
+
+    Returns:
+        tuple[np.ndarray, dict]: A tuple containing:
+            - hat_pi (np.ndarray): OLS estimate vector of the identifiable base inertial parameters.
+            - metrics (dict): A dictionary containing quality metrics of the estimation 
+                              (e.g., condition number, standard deviation, residual error).
+    """
+
+    # OLS solution for residuals  (weight computation)
     hat_pi_ref = np.hstack([robot.get_par_REG_red(),robot.get_par_Dl()]).reshape(-1,1)
     YY, TTau, observable_mask = get_big_Y_Tau(robot, traject)
     hat_pi, _ = solve_OLS_with_prior(robot, traject, conditioning_ratio=conditioning_ratio)
@@ -388,8 +495,26 @@ def solve_WLS_with_prior(robot, traject, conditioning_ratio = 50):
     return hat_pi, metrics
 
 
-def compute_essential(robot, traject, ratio_essential = 30):
-    # ratio ideally in 0-30
+def compute_essential(robot:Any, traject:TrajectoryManager, ratio_essential:float = 30) -> tuple[np.ndarray, list[int]]:
+    """
+    Compute the essential base inertial parameters iteratively. 
+
+    Args:
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka, thunder_ahand_finger).
+        traject (TrajectoryManager): Managed tracking object containing joint positions (q),
+                                    velocities (dq), accelerations (ddq), and measured
+                                    torques (tau) over time.
+        ratio_essential (float, optional): Percentile or energy threshold ratio used during the 
+                                           iterative pruning process to classify a parameter 
+                                           as "essential". Defaults to 30.0.
+
+    Returns:
+        tuple[np.ndarray, list[int]]: A tuple containing:
+            - hat_pi_essential (np.ndarray): Estimated value vector of the remaining essential parameters.
+            - indices_essential (list[int]): A list containing the indices of base parameters that are also essential.
+    """
+
     YY, TTau = get_big_Y_Tau(robot, traject)
     mask_essential = np.ones((YY.shape[1]), dtype=bool) # mask of essential parameters
     indeces_essential = [i for i in range(YY.shape[1]) if mask_essential[i]]
@@ -431,33 +556,34 @@ def compute_essential(robot, traject, ratio_essential = 30):
 
     return hat_pi_essential, indeces_essential
 
-def compute_SVD_essential(robot, traject, conditioning_ratio = 50):
+def solve_dynamics(robot:Any, config:dict, sigma_pi: Optional[np.ndarray] = None, opts:Optional[dict] = None, export_file:bool = False, path:Optional[str] = None) -> tuple:
+    """
+    Estimate the full robot dynamic via MLE approach
 
-    YY, _ = get_big_Y_Tau(robot, traject)
+    Args:
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka, thunder_ahand_finger).
+        config (dict): MLE optimization configuration dictionary containing weights and loss parameters.
+        sigma_pi (np.ndarray, optional): Covariance matrix of the base inertial parameters. Defaults to None, e.g. identity weighting.
+        opts (dict, optional): CasADi solver configuration and option tuning parameters. Defaults to None.
+        export_file (bool, optional): Whether the evaluation and optimization results should be exported to disk. Defaults to False.
+        path (str, optional): Absolute or relative system path where exported results files will be saved. Defaults to None.
 
-    U,S,Ut = np.linalg.svd(YY.T @ YY,  compute_uv = True)
-    sigma_max = S[0]
-    for i in range(YY.shape[1]):
-        sigma_p = S[i]
-        cond = np.sqrt(sigma_max/sigma_p)
-        if cond > conditioning_ratio:
-            print(f"SVD: truncated at index {i}")
-            p = i
-            break
+    Returns:
+        tuple[np.ndarray, dict]: A tuple containing:
+            - hat_par_REG_optim (np.ndarray): Estimated parameters via MLE.
+            - results (dict): A dictionary containing optimization loss value.
 
-    most_important_along_svd_dir = []
-    for i in range(p):
-        most_important_along_svd_dir.append(np.argmax(np.abs(Ut[i,:])))
+    Note:
+        The target robot model instance must pre-specify a valid base parameter initialization. 
+        Specifically, `robot.set_par_REG_red(...)` must be executed prior to calling this optimization function 
+        to bind baseline values estimated via OLS. All newly optimized MLE results are updated inside the `robot` instance automatically.
 
-    return Ut[:p]
-
-def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = False, path = None):
-    # robot.set_par_REG_red(...) must be called before to set proper estimated base inertial parameters
+    """
 
     # Load solution parameters
     POSITIVE_THRESH = float(config['identification'].get('positive_threshold',1e-16))
     INERTIA_SCALE_FACTOR = float(config['identification'].get('inertia_scale_factor', 1))
-    
     NUMERICAL_EIGEN = float(config['identification'].get('numerical_eigen', False))
 
     # Load dynamic parameters prior from robot
@@ -894,7 +1020,7 @@ def solve_dynamics(robot, config, sigma_pi = None, opts = None, export_file = Fa
         return (hat_par_REG, hat_par_Ia, results)
 
 
-def LMI_projection(robot, weights = None,psd_tol = 1e-5):
+def LMI_projection(robot:Any, weights:Optional[np.ndarray] = None, psd_tol:float = 1e-5) -> np.ndarray :
     """
     Projection of the estimated parameters into the nearest pheasible set of parameter via an Linear Matrix Inequality problem.
     min || par_DYN_proj - par_DYN ||_w ^2
@@ -904,12 +1030,14 @@ def LMI_projection(robot, weights = None,psd_tol = 1e-5):
     defined by the LMI constraints for positive definiteness of inertia matrix.
 
     Args:
-        robot (_thunder_robot_): _model of the robot_
-        weights (_np.ndarray_, optional): _weights for the projection cost function_. Defaults to None.
-        threshold (float, optional): _threshold for positive definiteness_. Defaults to 1e-5.
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka, thunder_ahand_finger).
+        weights (np.ndarray, optional): weights for the projection cost function. Defaults to None.
+        threshold (float, optional): threshold for positive definiteness. Defaults to 1e-5.
     Returns:
-        _np.ndarray_: _Feasible set of parameters_
+        np.ndarray: Feasible set of parameters
     """
+
     import cvxpy as cp
 
     par_DYN = robot.get_par_DYN().copy()
@@ -962,7 +1090,7 @@ def LMI_projection(robot, weights = None,psd_tol = 1e-5):
 def plot_base_identification(robot, traject, metrics, block = True,
                              title_size = 20, lable_size = 16, tick_size = 14, legend_size = 13):
     """
-    Plot of the reconstructed dynamic
+    Plot of the reconstructed dynamic via NE using base inertial parameters
 
     Args:
         robot (_type_): _description_
@@ -1000,6 +1128,9 @@ def plot_base_identification(robot, traject, metrics, block = True,
     rmse = np.sqrt(np.mean(np.sum(delta_tau**2, axis=1))) # RMSE = Sqrt{ 1/M Sum{||e||_2}  }
     cond_num = metrics.get('conditioning number', None)
     sigma_max = metrics.get('sigma max', None)
+
+    cond_str = f"{cond_num:.3f}" if cond_num is not None else "N/A"
+    sigma_str = f"{sigma_max:.3f}" if sigma_max is not None else "N/A"
     # --- 1. Plot tau ---
     colors = {
         'measured': '#D62728',   # Strong Red
@@ -1017,11 +1148,13 @@ def plot_base_identification(robot, traject, metrics, block = True,
 
     fig = plt.figure(figsize=(12,8))
     try:
-        plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]}\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}| Sigma max: {sigma_max}', 
+        # Removed the internal :.3f since cond_str is already a string
+        plt.suptitle(f'Torque Estimation Results - Method {metrics["method"]}\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_str} | Sigma max: {sigma_str}', 
                     fontsize=16, fontweight='bold')
     except Exception as e:
-        plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}| Sigma max: {sigma_max}', 
-                fontsize=16, fontweight='bold')
+        # Fixed here as well
+        plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_str} | Sigma max: {sigma_str}', 
+                    fontsize=16, fontweight='bold')
     
     for i in range(n):
             ax = plt.subplot(rows, cols, i + 1)
@@ -1051,19 +1184,31 @@ def plot_base_identification(robot, traject, metrics, block = True,
     return fig
 
 
-def plot_identification(robot, traject, metrics, title = None,block = True,
-                        title_size = 20, suptitle_size = 24, lable_size = 16, tick_size = 14, legend_size = 13):
+def plot_identification(robot: Any, traject: TrajectoryManager, metrics: dict, title: Optional[str] = None, block: bool = True,
+                        title_size: int = 20, suptitle_size: int = 24, label_size: int = 16, tick_size: int = 14, legend_size: int = 13) -> plt.Figure:
     """
-    Plot of the reconstructed dynamic
+    Plot the reconstructed joint torques computed via Newton-Euler (NE) inverse dynamics 
+    against the actual measured trajectory torques to visually validate the identification quality.
 
     Args:
-        robot (_type_): _description_
-        traject (_type_): _description_
-        metrics (_type_): _description_
-        block (bool, optional): _description_. Defaults to True.
+        robot (Any): Robot model instance built with the thunder dynamic tool
+                     (e.g., thunder_franka).
+        traject (TrajectoryManager): Managed tracking object containing joint positions (q),
+                                     velocities (dq), accelerations (ddq), and measured
+                                     torques (tau) over time.
+        metrics (dict): Estimation quality statistics generated by the OLS or MLE solver 
+                        (e.g., residual errors, standard deviations).
+        title (str, optional): Main text title displayed at the top window of the figure space. Defaults to None.
+        block (bool, optional): If True, blocks script execution until the user manually closes the window 
+                                (matplotlib execution control). Defaults to True.
+        title_size (int, optional): Font sizing parameter applied to individual subplot titles. Defaults to 20.
+        suptitle_size (int, optional): Font sizing parameter applied to the absolute main figure heading. Defaults to 24.
+        label_size (int, optional): Font sizing parameter applied to X and Y axis text titles. Defaults to 16.
+        tick_size (int, optional): Font sizing parameter applied to sequential numerical tick scales along the axes. Defaults to 14.
+        legend_size (int, optional): Font sizing parameter applied to the internal descriptive label keys. Defaults to 13.
 
     Returns:
-        _type_: _description_
+        plt.Figure: The Matplotlib figure instance containing the generated plot.
     """
     tau_M = []
     tau_C = []
@@ -1151,8 +1296,8 @@ def plot_identification(robot, traject, metrics, title = None,block = True,
         if i == 0:
             ax.legend()
         ax.title.set_fontsize(title_size)
-        ax.xaxis.label.set_fontsize(lable_size)
-        ax.yaxis.label.set_fontsize(lable_size)
+        ax.xaxis.label.set_fontsize(label_size)
+        ax.yaxis.label.set_fontsize(label_size)
         ax.tick_params(axis='both', labelsize=tick_size)
         legend = ax.get_legend()
         if legend:
@@ -1164,19 +1309,24 @@ def plot_identification(robot, traject, metrics, title = None,block = True,
 
     return fig
 
-def plot_LS_solution(hat_pi, metrics, pi_gt = None, block = True,
-                    title_size = 20, lable_size = 16, tick_size = 14, legend_size = 13):
+def plot_LS_solution(hat_pi: np.ndarray, metrics: dict, pi_gt: Optional[np.ndarray] = None, block: bool = True,
+                    title_size: int = 20, label_size: int = 16, tick_size: int = 14, legend_size: int = 13) -> plt.Figure:
     """
-    Box Plot representation for visualization of estimated base parameters 
+    Generate an error bar plot representation for visualization of the estimated base parameters
+    against optional ground truth reference values.
 
     Args:
-        hat_pi (_type_): _description_
-        metrics (_type_): _description_
-        pi_gt (_type_, optional): _description_. Defaults to None.
-        block (bool, optional): _description_. Defaults to True.
+        hat_pi (np.ndarray): Estimation vector of the identifiable base inertial parameters.
+        metrics (dict): Quality metrics containing 'parameters standard deviation' key array.
+        pi_gt (np.ndarray, optional): Ground truth parameter vector for verification. Defaults to None.
+        block (bool, optional): If True, blocks script execution until the user manually closes the figure. Defaults to True.
+        title_size (int, optional): Font sizing applied to the figure title. Defaults to 20.
+        label_size (int, optional): Font sizing applied to the X and Y axes labels. Defaults to 16.
+        tick_size (int, optional): Font sizing applied to the numerical axis tick markings. Defaults to 14.
+        legend_size (int, optional): Font sizing applied to the text elements inside the legend box. Defaults to 13.
 
     Returns:
-        _type_: _description_
+        plt.Figure: The Matplotlib figure instance containing the generated plot.
     """
     # Create an array of indices for the x-axis
     x = np.arange(len(hat_pi))
@@ -1201,8 +1351,8 @@ def plot_LS_solution(hat_pi, metrics, pi_gt = None, block = True,
     ax.grid(True, linestyle='--', alpha=0.6)
     # Axis-Style (title_size = 20, lable_size = 16, tick_size = 14, legend_size = 13)
     ax.title.set_fontsize(title_size)
-    ax.xaxis.label.set_fontsize(lable_size)
-    ax.yaxis.label.set_fontsize(lable_size)
+    ax.xaxis.label.set_fontsize(label_size)
+    ax.yaxis.label.set_fontsize(label_size)
     ax.tick_params(axis='both', labelsize=tick_size)
     legend = ax.get_legend()
     if legend:
@@ -1216,8 +1366,16 @@ def plot_LS_solution(hat_pi, metrics, pi_gt = None, block = True,
     plt.show(block=block)
     return fig
 
-def load_prior(prior_path):
-    """ load extended prior of the robot """
+def load_prior(prior_path:str) -> dict :
+    """  
+    Load the extended prior configuration of the robot.
+
+    Args:
+        prior_path (str): Path where the robot model full dynamic priors are stored.
+    
+    Returns:
+        dict: The dictionary containing the dynamic prior values.
+    """
     with open(prior_path, 'r') as f:
         try:
             prior = yaml.load(f, Loader=SafeLoader)
@@ -1230,7 +1388,17 @@ def load_prior(prior_path):
     return prior
 
 
-def check_par_DYN_feasibility(par_DYN,n, verbose = False):
+def check_par_DYN_feasibility(par_DYN:np.ndarray ,n: int, verbose: bool = False) -> bool:
+    """ 
+    Return whether a set of dynamic parameters is feasible.
+
+    Args:
+        par_DYN (np.ndarray): standar dynamic parameters of robot model.
+        n (int): Number of robot link.
+        verbose (bool, optional): Wheter run in verbose mode. Default is false.
+
+    Returns:
+        bool: feasibility of link given link. """
     feas_flag = True
     for i in range(n):
         # Mass check
@@ -1265,7 +1433,7 @@ def check_par_DYN_feasibility(par_DYN,n, verbose = False):
 
 def _generate_fibonacci_sphere(n_samples: int = 2000) -> np.ndarray:
     """
-    Generates n_samples points nearly uniformly distributed on a unit sphere 
+    Generates n_samples points nearly uniformly distributed on a unit sphere
     using the Fibonacci spiral method.
 
     Returns:

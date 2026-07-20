@@ -1,4 +1,4 @@
-name: base_inertial_parameter
+name: dynamic_parameters_identification
 channels:
   - conda-forge
   - robostack-staging

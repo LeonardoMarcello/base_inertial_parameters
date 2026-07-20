@@ -13,7 +13,6 @@ docker build -t base-inertial-parameters:latest -f docker/Dockerfile .
 
 ## Running the Container
 
-
 ```bash
 docker run -it --rm -v $(pwd):/base_inertial_parameters base-inertial-parameters:latest python src/examples/franka_testing/main_test.py
 ```

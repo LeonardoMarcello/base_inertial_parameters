@@ -13,7 +13,7 @@ import utils.import_thunder as thunder
 config_path = '/path/to/identification/config/identif_config.yaml'
 with open(config_path, 'r') as f:
    config = yaml.load(f, Loader=SafeLoader)
-robot = thunder.thunder_robot()
+robot = thunder.thunder_['robot']()
 thunder.load_params(robot, config['robot']['path'])
 
 # Setup and solve identification Problem ----

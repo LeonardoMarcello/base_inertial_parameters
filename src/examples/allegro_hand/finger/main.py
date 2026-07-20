@@ -17,7 +17,8 @@ opts = {
 config_path = './src/examples/allegro_hand/config/ahand_finger_config.yaml'
 with open(config_path, 'r') as f:
    config = yaml.load(f, Loader=SafeLoader)
-finger = thunder.thunder_ahand_finger()
+
+finger = thunder.thunder_['ahand_finger']()
 thunder.load_params(finger, config['robot']['path'])
 # Setup Identifier Object and Solve Identification Problem ----
 identifier = Identifier(finger, config_path=config_path)

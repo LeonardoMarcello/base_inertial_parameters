@@ -26,15 +26,47 @@ plt.rcParams.update({
 from scipy.signal import butter, decimate, filtfilt
 
 from utils.casadi_utils import *
-
+from typing import Any, Optional
 
 class TrajectoryManager:
     """
-    Class for the eas of traject manage
-    add attr routn etc...
+    Class for the ease of trajectory management, filtering, and differentiation.
     """
-    def __init__(self, config_file, filter_order = 4, cutoff_freq = 30, decimate_factor = 10):
+    # Explicitly declaration of class attribute types for IDEs
+    df: pd.DataFrame | None
+    
+    # Post-Processing measurement arrays
+    t: np.ndarray | None
+    tau: np.ndarray | None
+    q: np.ndarray | None
+    qd: np.ndarray | None
+    qdd: np.ndarray | None
 
+    # Pre-Processing measurement arrays
+    raw_t: np.ndarray | None
+    raw_tau: np.ndarray | None
+    raw_q: np.ndarray | None
+    raw_qd: np.ndarray | None
+    raw_qdd: np.ndarray | None
+
+    config: dict[str, Any]
+    filter_order: int
+    cutoff_freq_rad: float
+    decimate_factor: int
+    dt: float
+    F_s: float
+
+
+    def __init__(self, config_file:str, filter_order:int = 4, cutoff_freq:float = 30, decimate_factor:int = 10) -> None:
+        """
+        Initialize the trajectory manager class.
+
+        Args:
+            config_file (str): File system path targeting the pipeline configuration description file.
+            filter_order (int, optional): Default order for the Butterworth filter if not specified in the configuration. Defaults to 4.
+            cutoff_freq (float, optional): Default cut-off frequency [rad/s] if not specified in the configuration. Defaults to 30.0.
+            decimate_factor (int, optional): Default downsampling decimation factor if not specified in the configuration. Defaults to 10.
+        """
         self.df = None      # Dataframe with raw measurement
 
         self.t = None       # Post-Processing measurement arary
@@ -64,7 +96,11 @@ class TrajectoryManager:
         return
 
 
-    def process(self):
+    def process(self)-> None:
+        """
+        Process the raw dataframe using standard sequential steps: window trimming, 
+        zero-phase Butterworth filtering, centered finite differences, and downsampling.
+        """
         # process datafame
         INTERVAL = self.config['trajectory'].get('interval',(5,10000))
         apply_decimation = self.config['processing'].get('apply_decimation',True)
@@ -153,9 +189,9 @@ class TrajectoryManager:
         self.qdd = self.qdd[nbord:-nbord,:]
         self.tau = self.tau[nbord:-nbord,:]
 
-    def process_pipeline(self):
+    def process_pipeline(self) -> None:
         """
-         Process raw data using custom pipeline
+        Process raw dataset signals dynamically following a user-configured list array order pipeline.
         """
         processed_data = {}
         self._load_df()
@@ -186,9 +222,9 @@ class TrajectoryManager:
         self.qdd = processed_data['ddq']
         self.tau = processed_data['tau']
 
-    def _load_df(self):
+    def _load_df(self)-> None:
         """
-         Load raw data from already stored dataframe into local variables 
+        Extract active signal sections from the loaded DataFrame internal storage.
         """
         # process datafame
         INTERVAL = self.config['trajectory'].get('interval', [0,1000])
@@ -215,9 +251,15 @@ class TrajectoryManager:
         self.F_s = 1.0 / self.dt                      # sampling frequency [Hz]
 
 
-    def _filtering(self, data):
+    def _filtering(self, data: dict) -> dict:
         """
-         Filter the collected data using a butterworth filter
+        Filter the parsed tracking signal data arrays using a low-pass zero-phase Butterworth implementation.
+
+        Args:
+            data (dict): Dictionary mapping signal names ('t', 'q', 'tau', etc.) to their respective NumPy arrays.
+
+        Returns:
+            dict: The modified dictionary containing the filtered and border-trimmed data channels.
         """
         filtered_data = data.copy()
 
@@ -239,9 +281,15 @@ class TrajectoryManager:
 
         return filtered_data
 
-    def _decimating(self, data):
+    def _decimating(self, data: dict) -> dict:
         """
-         Decimate available data
+        Downsample the active configuration channels according to the system decimation factor.
+
+        Args:
+            data (dict): Dictionary mapping signal names to their uniform length tracking arrays.
+
+        Returns:
+            dict: The downsampled sequence arrays dictionary with updated frequencies.
         """
         decimated_data = data.copy()
         # 1) Check parsed data
@@ -271,9 +319,15 @@ class TrajectoryManager:
 
         return decimated_data
 
-    def _differentiating(self, data):
+    def _differentiating(self, data: dict) -> dict:
         """
-         Finite Central differentiation of available data
+        Calculate numeric derivations using a central finite difference algorithm schema.
+
+        Args:
+            data (dict): Dictionary containing the base tracking paths.
+
+        Returns:
+            dict: The differentiated output dictionary containing the newly created key channels.
         """
         differentiated_data = data.copy()
         # 1) Check parsed data
@@ -299,7 +353,17 @@ class TrajectoryManager:
 
 
 
-    def plot_traject(self, robot, block = True):
+    def plot_traject(self, robot: Any, block: bool = True) -> tuple[plt.Figure, plt.Figure, plt.Figure, plt.Figure]:
+        """
+        Render processing comparison loops tracking unfiltered signals against final filtered trajectory records.
+
+        Args:
+            robot (Any): Robot model instance built with the thunder dynamic tool.
+            block (bool, optional): If True, blocks code processing flow execution until window close commands. Defaults to True.
+
+        Returns:
+            tuple[plt.Figure, plt.Figure, plt.Figure, plt.Figure]: Reconstructed figure tracking sheets (pos, vel, accel, effort).
+        """
         # --- 1. Plot joint trajectories ---
         n = robot.numJoints
         cols = int(np.sqrt(n)) 
@@ -361,7 +425,16 @@ class TrajectoryManager:
         return fig_q, fig_qd, fig_qdd, fig_tau
 
 
-    def compute_ne(self, robot):
+    def compute_ne(self, robot: Any) -> np.ndarray:
+        """
+        Evaluate Newton-Euler inverse dynamics torques point-by-point along the trajectory.
+
+        Args:
+            robot (Any): Target robot tracking model structure matrix properties setup.
+
+        Returns:
+            np.ndarray: Matrix containing the reconstructed dynamic torques profiles.
+        """
         tau_ne = []
         pi_red = robot.get_par_REG_red()
         pi_dl = robot.get_par_Dl()
@@ -385,7 +458,14 @@ class TrajectoryManager:
         tau_ne = np.array(tau_ne)
         return tau_ne
 
-    def plot_traject_recostructed(self, robot, block = True):
+    def plot_traject_recostructed(self, robot: Any, block: bool = True) -> None:
+        """
+        Render dynamic parameter tracking accuracy visualizations comparing calculated estimations.
+
+        Args:
+            robot (Any): Target robot instance model profile.
+            block (bool, optional): If True, blocks script thread execution until closing windows. Defaults to True.
+        """
         delta_tau = []
         pi_red = robot.get_par_REG_red()
         pi_dl = robot.get_par_Dl()
@@ -465,10 +545,12 @@ class TrajectoryManager:
         plt.tight_layout()
         plt.show(block=block)
 
-    def export2csv(self, folder_dir):
+    def export2csv(self, folder_dir: str) -> None:
         """
-        Splits the main DataFrame and saves columns into specific identification files.
-        :param folder_dir: The directory where the files will be saved.
+        Split the composite workspace metrics sheet out into standalone component CSV records.
+
+        Args:
+            folder_dir (str): Destination folder directory mapping path.
         """
         # Create the folder if it doesn't exist
         if not os.path.exists(folder_dir):
@@ -497,21 +579,15 @@ class TrajectoryManager:
 
 
     @staticmethod
-    def read_csv(csv_folder):
+    def read_csv(csv_folder: str) -> Optional[pd.DataFrame]:
         """
-        This function allows to read data directly stored in a csv file.
-        Data files must be named with the following syntax:
-        - t_<additional>.csv -> timestamp dataset
-        - q_<additional>.csv -> joints position dataset
-        - dq_<additional>.csv -> joints velocity dataset (optional)
-        - tau_<additional>.csv -> joints effort dataset
-
+        Parse dynamic logging matrix values located across multiple custom system text sheets.
 
         Args:
-            csv_folder (_type_): _description_
+            csv_folder (str): Directory containing the set of input CSV data files.
 
         Returns:
-            _type_: _description_
+            Optional[pd.DataFrame]: Combined Pandas dataframe tracking records structure.
         """
         # Map prefixes to their desired column naming convention
         # Format: { 'filename_prefix': 'dataframe_column_prefix' }
@@ -546,7 +622,13 @@ class TrajectoryManager:
                         df = temp_df
         return df
 
-    def _load_config(self, filename):
+    def _load_config(self, filename: str) -> None:
+        """
+        Parse tracking configuration properties while mapping fallback template baselines.
+
+        Args:
+            filename (str): The configuration file destination location mapping.
+        """
         # 1. Load the user's YAML file (the "or {}" prevents crashes if the file is totally empty)
         with open(filename, 'r') as f:
             self.config = yaml.load(f, Loader=SafeLoader) or {}

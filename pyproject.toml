@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name="base_inertial_parameters"
+name="dynamic_parameters_identification"
 version="0.1.0"
-description="Base Inertial Parameters Package"
+description="Dynamic Parameters Identification Package"
 dependencies = [
     "numpy",
     "scipy",

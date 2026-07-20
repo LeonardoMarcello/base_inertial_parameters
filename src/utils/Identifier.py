@@ -1,10 +1,23 @@
 from utils.loader_utils import *
 from utils.identification_utils import *
 from utils.ros2_utils import *
+from typing import Any, Optional
 
 
 class Identifier():
-    def __init__(self, robot, config_path):
+    """
+    High-level class manager for execution of robot dynamic parameters identification pipelines.
+    Supports data assimilation, Least squares base inertial parameters estimation, and global 
+    physical consistency optimization (MLE).
+    """
+    def __init__(self, robot: Any, config_path:dict) -> None:
+        """
+        Initialize the Identifier class.
+
+        Args:
+            robot (Any): Robot model instance built with the thunder dynamic tool.
+            config_path (str): File system path targeting the pipeline configuration description file.
+        """
         self.robot = robot
         self.config_path = config_path
 
@@ -14,8 +27,11 @@ class Identifier():
         self.trajectory = None
         self.metrics = {}
 
-    def init(self):
-        """initialize trajectory"""
+    def init(self) -> None:
+        """
+        Load tracking configurations and parse trajectories from ROS2 bags or raw text layouts.
+        Executes internal low-pass structural filter decimations.
+        """
         # Load config
         config_traject = self.config['trajectory']
         config_processing = self.config['processing']
@@ -33,10 +49,12 @@ class Identifier():
         else:
             self.trajectory.process()
 
-    def solve_base_parameter(self):
-        """solve and store the identfied base dynamic parameters of the robot in the following fields:
-             - robot.get_par_REG_red()
-             - robot.get_par_Dl()
+    def solve_base_parameter(self)-> None:
+        """
+        Solve and store the identified base dynamic parameters of the robot structure.
+        Splits rigid dynamic parameters from actuator friction parameters and updates:
+             - robot.set_par_REG_red(...)
+             - robot.set_par_Dl(...)
         """
         # set solver config
         method = self.config['identification'].get('method','OLS')
@@ -64,12 +82,21 @@ class Identifier():
 
         self.metrics = metrics
 
-    def solve_full_dynamics(self, opts = None):
-        """solve and store the full identfied robot dynamics model in the following fields:
-             - robot.get_par_REG()
-             - robot.get_par_DYN()
-             - robot.get_par_REG_red()
-             [- robot.get_par_Ia()]
+    def solve_full_dynamics(self, opts:  Optional[dict] = None) -> dict:
+        """
+        Execute Maximum Likelihood Estimation optimization to map low-dimensional
+        base configurations back to full structural links.
+        It updates the internal robot model that can be retrieved via:
+             - robot.set_par_REG(...)
+             - robot.set_par_DYN(...)
+             - robot.set_par_REG_red(...)
+             - robot.set_par_Ia(...) [Optional]
+
+        Args:
+            opts (dict, optional): CasADi solver configuration options. Defaults to None.
+
+        Returns:
+            dict: Optimization diagnostic metrics containing evaluation residuals and cost maps.
         """
         # Define and Solve Full dynamics
         print(">> Full inertial Parameters Estimation")
@@ -86,8 +113,14 @@ class Identifier():
 
         return results
 
-    def save_plot(self, block = False, path = None):
-        """export results in thunder dynamics config yaml file"""
+    def save_plot(self, block: bool = False, path: Optional[str] = None) -> None:
+        """
+        Render dynamic tracking plots and export graphic snapshots to file storage.
+
+        Args:
+            block (bool, optional): If True, blocks script execution until window close commands. Defaults to False.
+            path (str, optional): Target directory mapping where image files are saved. Defaults to None.
+        """
         # 1. Define and create the results directory
         if path is None:
             date_str = datetime.datetime.now().strftime("%d_%m_%Y")
@@ -114,8 +147,13 @@ class Identifier():
         print(f"Plot stored in in '{results_dir}'")
 
 
-    def print_table(self, format = 'plain'):
-        """ Print Table of Dynamic parameters """
+    def print_table(self, format: str = 'plain') -> None:
+        """
+        Print structural dynamic parameters to terminal layout formatted as plain text or scientific LaTeX tags.
+
+        Args:
+            format (str, optional): Layout encoding configuration structure ('plain' or 'latex'). Defaults to 'plain'.
+        """
         np.set_printoptions(precision=4, suppress=True, linewidth=200)
         headers = ["m", "cx", "cy", "cz", "ixx", "ixy", "ixz", "iyy", "iyz", "izz",'Ia']
 
@@ -188,7 +226,7 @@ class Identifier():
             if hasattr(self.robot, "get_par_Dl"):
                 params = np.hstack([params.reshape(n,-1),
                                     self.robot.get_par_Dl().reshape(n,-1)]).reshape(n, -11)
-            
+
             # Print header
             header_str = f"{'Link':<6}" + "".join([f"{h:>14}" for h in headers])
             print(header_str)
@@ -198,8 +236,13 @@ class Identifier():
                 row_str = f"{i:<6}" + "".join([f"{val:>14.6e}" for val in row])
                 print(row_str)
 
-    def export(self, path = None):
-        """export results in thunder dynamics config yaml file"""
+    def export(self, path: Optional[str] = None) -> None:
+        """
+        Compile extracted parameters structure into an autogenerated serialization format YAML tracking profile.
+
+        Args:
+            path (str, optional): Target serialization outport address tracking location. Defaults to None.
+        """
         # 1. Define and create the results directory
         if path is None:
             date_str = datetime.datetime.now().strftime("%d_%m_%Y")
@@ -243,13 +286,19 @@ class Identifier():
         print(f"Estimated Dynamic Parameters written in '{config_path}'")
 
 
-    def help():
-        """print object usage"""
-        # TO DO: Print usage decription
-        return
 
-    def _load_config(self, filename):
-        """ load identification configuration """
+    def _load_config(self, filename: str) -> None:
+        """
+        Parse and sanitize top-level section properties within the system configuration descriptor mapping.
+
+        Args:
+            filename (str): Path targeting the tracking file configuration template.
+
+        Raises:
+            ValueError: If the YAML syntax verification fails.
+            KeyError: If structural parameter dependencies are missing.
+            TypeError: If datatype evaluation rules are violated.
+        """
         with open(filename, 'r') as f:
             try:
                 self.config = yaml.load(f, Loader=SafeLoader)
@@ -307,3 +356,9 @@ class Identifier():
                 raise ValueError(f"Mismatch: Found {len(joints)} joints but {len(links)} link weights. They must match.")
 
         print("[INFO] Configuration loaded and validated successfully!")
+
+
+    def help(self):
+        """print object usage"""
+        # TO DO: Print usage decription
+        return

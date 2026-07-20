@@ -16,10 +16,12 @@ plt.rcParams.update({
 })
 
 from utils.identification_utils import *
+from typing import Any
 
-def plot_eval_identification(robot, metrics, traject, robot_gt = None, block = True,
-                    title_size = 20, suptitle_size = 24, lable_size = 16, tick_size = 14, legend_size = 13):
-    """ Plot measurement and reconstructed effort """
+def plot_eval_identification( robot: Any, metrics: dict[str, Any], traject: Any, robot_gt: Any = None,  block: bool = True,
+    title_size: int = 20, suptitle_size: int = 24, label_size: int = 16, tick_size: int = 14, legend_size: int = 13
+) -> plt.Figure:
+    """Plot effort measurement against effort estimation reconstructed via NE on robot model."""
     delta_tau = []
     delta_tau_GT = []
 
@@ -67,7 +69,7 @@ def plot_eval_identification(robot, metrics, traject, robot_gt = None, block = T
     JOINT_NAMES = traject.config['trajectory']['joints']
 
     fig = plt.figure(figsize=(12,8))
-    plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num}', 
+    plt.suptitle(f'Torque Estimation Results\nRMSE: {rmse:.4f} Nm | Conditioning Number (κ): {cond_num:.3f}', 
                 fontsize=16, fontweight='bold')
     for i in range(n):
         ax = plt.subplot(rows, cols, i + 1)
@@ -84,8 +86,8 @@ def plot_eval_identification(robot, metrics, traject, robot_gt = None, block = T
         if i == 0:
             ax.legend(loc='lower right')
         ax.title.set_fontsize(title_size)
-        ax.xaxis.label.set_fontsize(lable_size)
-        ax.yaxis.label.set_fontsize(lable_size)
+        ax.xaxis.label.set_fontsize(label_size)
+        ax.yaxis.label.set_fontsize(label_size)
         ax.tick_params(axis='both', labelsize=tick_size)
         legend = ax.get_legend()
         if legend:
@@ -101,9 +103,18 @@ def plot_eval_identification(robot, metrics, traject, robot_gt = None, block = T
 
 
 
-def plot_eval_LS_solution(hat_pi, metrics, robot_gt = None, block = True,
-                    title_size = 20, suptitle_size = 24, lable_size = 16, tick_size = 14, legend_size = 13):
-    """ Plot Base parameters estim as boxplot """
+def plot_eval_LS_solution(
+    hat_pi: np.ndarray, 
+    metrics: dict[str, Any], 
+    robot_gt: Any = None, 
+    block: bool = True,
+    title_size: int = 20, 
+    suptitle_size: int = 24, 
+    label_size: int = 16, 
+    tick_size: int = 14, 
+    legend_size: int = 13
+) -> plt.Figure:
+    """Plot Base parameters estimation in errorbar format."""
     # Create an array of indices for the x-axis
     x = np.arange(len(hat_pi))
 
@@ -126,8 +137,8 @@ def plot_eval_LS_solution(hat_pi, metrics, robot_gt = None, block = True,
     ax.legend(loc='lower right')
     ax.grid(True, linestyle='--', alpha=0.6)
     ax.title.set_fontsize(title_size)
-    ax.xaxis.label.set_fontsize(lable_size)
-    ax.yaxis.label.set_fontsize(lable_size)
+    ax.xaxis.label.set_fontsize(label_size)
+    ax.yaxis.label.set_fontsize(label_size)
     ax.tick_params(axis='both', labelsize=tick_size)
     legend = ax.get_legend()
     if legend:
@@ -141,10 +152,8 @@ def plot_eval_LS_solution(hat_pi, metrics, robot_gt = None, block = True,
     return fig
 
 
-def plot_table(robot, robot_ground_truth, format = 'plain'):
-    """ 
-    Print Table with the full set of dynamic parameters
-    """
+def plot_table(robot: Any, robot_ground_truth: Any, format: str = 'plain') -> None:
+    """Print Table structural descriptions with the full set of dynamic parameters."""
     print(f" ------------------")
     print(f"| Evaluation Table |")
     print(f" ------------------")
@@ -368,22 +377,19 @@ def plot_table(robot, robot_ground_truth, format = 'plain'):
                 print(row_str)
 
 
-def plot_link_solution(robot, robot_gt, n, title = None, block = True,
-                    title_size = 20, suptitle_size=24, lable_size = 16, tick_size = 14, legend_size = 13):
-    """
-    Plot estimated dynamic parameters of a single robot link against their ground-truth
-
-    Args:
-        robot (_type_): _description_
-        robot_gt (_type_): _description_
-        n (_type_): _description_
-        title (_type_, optional): _description_. Defaults to None.
-        block (bool, optional): _description_. Defaults to True.
-
-    Returns:
-        _type_: _description_
-    """
-    # Ground truth
+def plot_link_solution(
+    robot: Any, 
+    robot_gt: Any, 
+    n: int, 
+    title: str | None = None, 
+    block: bool = True,
+    title_size: int = 20, 
+    suptitle_size: int = 24, 
+    label_size: int = 16, 
+    tick_size: int = 14, 
+    legend_size: int = 13
+) -> plt.Figure:
+    """Plot estimated dynamic parameters of a single robot link against their ground-truth."""# Ground truth
     m_gt = robot_gt.get_par_DYN()[n*10 + 0]
     com_gt = np.array([robot_gt.get_par_DYN()[n*10 + 1],
                        robot_gt.get_par_DYN()[n*10 + 2],
@@ -446,8 +452,8 @@ def plot_link_solution(robot, robot_gt, n, title = None, block = True,
     axes[2].grid(axis='y', linestyle='--', alpha=0.6)
     for ax in axes:
         ax.title.set_fontsize(title_size)
-        ax.xaxis.label.set_fontsize(lable_size)
-        ax.yaxis.label.set_fontsize(lable_size)
+        ax.xaxis.label.set_fontsize(label_size)
+        ax.yaxis.label.set_fontsize(label_size)
         ax.tick_params(axis='both', labelsize=tick_size)
         legend = ax.get_legend()
         if legend:
@@ -460,7 +466,8 @@ def plot_link_solution(robot, robot_gt, n, title = None, block = True,
     return fig
 
 
-def check_feasibility(robot):
+def check_feasibility(robot: Any) -> None:
+    """Check physical variance feasibility parameters of a robot instance."""
     par_DYN = robot.get_par_DYN()
     for i in range(robot.numJoints):
         par_DYN_link_i = par_DYN[10*i:10*(i+1)]
@@ -489,7 +496,8 @@ def check_feasibility(robot):
             if d <= 0: print(f"Inertia of link {i} do not pass Sylvewster Criterion. (d: {d})")
 
 
-def check_par_feasibility(par_DYN,n):
+def check_par_feasibility(par_DYN: np.ndarray, n: int) -> None:
+    """Check feasibility criteria metrics validation checking limits over standard matrices."""
     for i in range(n):
         par_DYN_link_i = par_DYN[10*i:10*(i+1)]
         if par_DYN_link_i[0] <= 0: print(f"mass of link {i} is non positive")

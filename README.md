@@ -1,4 +1,4 @@
-# Base Inertial Parameter Identification
+# Dynamic Parameter Identification
 
 This directory contains the main Python modules and scripts for identifying the dynamics of a robotic serial manipulator.
 
@@ -17,8 +17,8 @@ The **base parameter identification** is implemented via:
 - **LS|prior** (Least Squared error with prior)
 
 The **full parameter identification** is implemented in CasADi using the solver:
-- **IPOTP** (Interior Point) 
-or using the simulated annealing algorithm
+- in CasADi using the solver **IPOTP** (Interior Point) or 
+- in SciPy using the **simulated annealing** algorithm
 
 The **Results** are stored in a folder containing the following:
 - **Trajectory Plots**
@@ -28,7 +28,7 @@ The **Results** are stored in a folder containing the following:
 ## Installation
 ### Option 1: Using Docker
 ```bash
-git clone https://github.com/LeonardoMarcello/base_inertial_parameter.git
+git clone https://github.com/LeonardoMarcello/Dynamic-Parameter-Identification.git
 
 cd base_inertial_parameters
 
@@ -37,12 +37,12 @@ docker build -t base-inertial-parameters:latest -f docker/Dockerfile .
 
 ### Option 2: Using Conda virtual environment
 ```bash
-git clone https://github.com/LeonardoMarcello/base_inertial_parameter.git
+git clone https://github.com/LeonardoMarcello/Dynamic-Parameter-Identification.git
 
-cd base_inertial_parameters
+cd dynamic_parameters_identification
 
 conda env create -f environment.yaml
-conda activate base_inertial_parameters
+conda activate dynamic_parameters_identification
 
 pip install -e .
 ```
@@ -51,23 +51,29 @@ pip install -e .
 
 ## Example
 
-This project contains the **dynamic parameter identification** for various robotic platforms:
-- **Franka Panda** The identification of the dynamiks of the Franka Emika Panda Manipulator
-- **Franka Panda with the SoftHand** The Identification of the dynamics of the Franka Emika Panda Manipulator with the SoftHand using data collected in the Gazebo simualtive environment
-- **Allegro Hand** The identification of theparameters for the fingers of the Wonik Allegro Hand V5
+This project contains some example of the **dynamic parameter identification** on real hardware:
+- **7DoF collaporative robot, the Franka Emika Panda** The identification of the dynamiks of the Franka Emika Panda Manipulator
+- **Anthropomorphic robotic hand, the Wonkik Allegro Hand** The identification of theparameters for the fingers of the Wonik Allegro Hand V5
+--
+The following data were collected in Gazebo simualtive environment for accuracy evaluation
+- **Franka Panda with payload** The Identification of the dynamics of a SoftHand robotic platform mounted on the end-effector of the Franka Emika Panda Manipulator
+- **Franka Panda estimation with different trajectorries** The Identification of the dynamics of the Franka Emika Panda Manipulator is compared across 3 trajectories: Fourier, chirp, and Sinusoidal
 
 The example files ar located
 ```
 examples/
-├── franka/
+├── franka_real/
 │    ├── results/
 │    │   └── ...
-│    ├── franka_config.yaml
+│    ├── config/
+│    │   └── ...
 │    └── franka_identification.py
-├── ahand_finger/
-│    └── ...
-└── ahand_thumb/
-     └── ...
+├── franka_sim_softhand/
+├── franka_sim_trajectories/
+└── allegro_hand/
+     ├── config/
+     ├── ahand_finger/
+     └── ahand_thumb/
 ```
 
 ### Directories
@@ -82,12 +88,11 @@ Utility modules providing core functionality:
   - Handles result storage and export
   - Methods: `init()`, `solve_base_parameter()`, `solve_full_dynamics()`, `print_table()`, `save_plot()`, `export()`
 
-- **`import_thunder.py`** - Thunder library interface
-  - Wraps Thunder symbolic model generation framework
-  - Provides robot instantiation functions
-  - Handles parameter loading/saving
+- **`import_thunder.py`** - Thunder dynamics generated code interface
+  - Wraps Thunder generated code import in the identification framework
+  - Handles parameter loading
 
-- **`loader_utils.py`** - Data loading and preprocessing
+- **`loader_utils.py`** - TrajectoryManager class definition aiding data loading and processing
   - ROS2 bag file parsing
   - Joint state extraction
   - Signal filtering (low-pass filters)
@@ -105,7 +110,7 @@ Utility modules providing core functionality:
   - Plot generation (actual vs predicted)
   - Statistical metrics
 
-- **`casadi_utils.py`** - CasADi optimization utilities
+- **`casadi_utils.py`** - CasADi function definition utilities
   - Optimization problem setup
   - iLQR solver integration
   - Constraint handling
@@ -121,8 +126,8 @@ Example configurations and workflows for different robots:
 - `ahand_finger/` - Allegro Hand finger examples
 
 #### `thunder/`
-Thunder generated file for robot modelling: 
-(see [Thunder Dynamics](https://github.com/CentroEPiaggio/thunder_dynamics) for more details) 
+Thunder generated file for robot modelling, all robot generated code must be placed here: 
+(see [Thunder Dynamics](https://github.com/CentroEPiaggio/thunder_dynamics) for more details about how to generating robot model code)
 - Auto-generated robot models and parameters
 - Dynamic equations and regressor computation
 - Parameter definitions and constraints
@@ -195,7 +200,7 @@ Templates to ease the environment set-up:
    with open(config_path, 'r') as f:
       config = yaml.load(f, Loader=SafeLoader)
 
-   robot = thunder.thunder_robot()
+   robot = thunder.thunder_['robot']()
    thunder.load_params(robot, config['robot']['path']) # This function allows to load priors
 
 
@@ -244,7 +249,8 @@ Key parameters in YAML configs:
 | `identification.method` | str | Estimation method for Base Inertial Parameters (`'OLS'`, `'WLS'`, `'OLS\|prior'`, `'WLS\|prior'`). |
 | `identification.conditioning_ratio` | float | Ratio to truncate the SVD inverse for handling ill-conditioning (Default: `None`). |
 | `identification.positive_threshold` | float | Positive threshold tolerance for the constrained problem solver (Default: `1e-16`). |
-| `identification.inertia_scale_factor` | float | Scaling of inertia matrix to ease check on definitive positive costraint (Default: `1`). |
+| `identification.numerical_eigen` | bool | Wheter to costraint Positive Definitess of matrix with samples rather than  symbolic eigenvalues computation (Default: `false`). |
+| `identification.inertia_scale_factor` | float | Scaling of inertia matrix to ease numerical check on definitive positive costraint (Default: `1`). |
 | `identification.weight.loss` | float | Gain factor for the base parameters optimization loss function. |
 | `identification.weight.mass` | float | Mass standard deviation prior [Kg]. |
 | `identification.weight.CoM` | float | Center of Mass standard deviation prior [m]. |
@@ -260,7 +266,7 @@ Key parameters in YAML configs:
 - **PyYAML**: Configuration parsing
 - **Matplotlib**: Visualization
 - **CasADi**: Symbolic optimization and AD
-- **Thunder Dynamic**: Symbolic robot modeling
+- **Thunder Dynamic**: Symbolic robot modeling (only when generating the robot model)
 
 ### ROS2 Integration
 - **ROS2**: For rosbag data loading
@@ -268,10 +274,9 @@ Key parameters in YAML configs:
 
 ## Output Structure
 
-Results are stored in `results/data_DD_MM_YYYY/`:
+Results are stored in the desired directory (default is `results/data_DD_MM_YYYY/`):
 ```
 results/
-└── data_DD_MM_YYYY/
     ├── identification_par.yaml
     ├── q.png
     ├── qd.png
@@ -281,7 +286,7 @@ results/
 ```
 
 ## Algorithm Overview
-CI sta bene un immagine ...
+![System Architecture Pipeline](doc/pipeline.png)
 ### 1. **Data Processing**
    - Load joint positions, velocities, accelerations from raw data
    - Apply low-pass filtering to smooth signals
@@ -303,11 +308,11 @@ $$\begin{aligned}
 \min_{\boldsymbol{\pi}_{DYN}} \quad & (\boldsymbol{\pi}^* - \boldsymbol{\pi}_b(\boldsymbol{\pi}_{DYN}))^\top \mathbf{C}_{\boldsymbol{\pi} \boldsymbol{\pi}}^{-1} (\boldsymbol{\pi}^* - \boldsymbol{\pi}_b(\boldsymbol{\pi}{DYN})) + \\
 & + (\boldsymbol{\pi}_0 - \boldsymbol{\pi}_{DYN})^\top \Sigma_0^{-1} (\boldsymbol{\pi}_0 - \boldsymbol{\pi}_{DYN}) \\
 \textrm{s.t.} \quad & m_i > 0, \quad \forall i \in {1, \dots, N} \\
-& \mathbf{I}_i \succ 0, \quad \forall i \in {1, \dots, N}
+& \mathbf{P}_i \succ 0, \quad \forall i \in {1, \dots, N}
 \end{aligned}$$
 
 ### 4. **Robot Modeling**
-The Developed package relies on the robot model generated via the Thunder Dinamics library. In particular it allows to define:
+The Developed package relies on the robot model generated via the Thunder Dinamics software. In particular it allows to define:
 $$\begin{aligned}
     \tau &= \boldsymbol{M}(q)\ddot{q} + \boldsymbol{C}(q,\dot{q})\dot{q} +\boldsymbol{G}(q) + \tau_f + \tau_{Ia}\\
     \tau_f &= \boldsymbol{F}\dot{q} + \boldsymbol{D}\textit{sign}(\dot{q})\\  
@@ -323,22 +328,9 @@ $$\begin{aligned}
    - Rotor Inertia: $\tau_{Ia} = \boldsymbol{I}_a\ddot{q}$ (optional)
 
 
-for more detail about the usage of [Thunder Dynamic](https://github.com/CentroEPiaggio/thunder_dynamics.git) library, please refer to its official repo.
-
-## Debugging & Development
-
-### Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Thunder module not found | Ensure `thunder/` submodule is initialized (CHECK)|
-| get_par_REG_red() or get_par_REG_red()  not implemented (CHECK ERROR) | Ensure that the robot model is generated with the Base Inertial Parameter plugin |
-
-## Notes
-
-- Ground truth parameters can be loaded for validation
+for more detail about the usage of [Thunder Dynamic](https://github.com/CentroEPiaggio/thunder_dynamics.git) software, please refer to its official repo.
 
 ## Related Documentation
 
-- See `doc/` for detailed methodology papers (TO DO)
+- See `doc/` for detailed methodology papers
 

@@ -8,19 +8,40 @@ from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import JointState
 
 from utils.loader_utils import *
+from typing import Any, Optional
 
 
 class TrajectoryManagerROS2(TrajectoryManager):
     """
-    Class for the eas of traject manage. It extend Trajectory manager etc...
-    add attr routn etc...
+    Subclass of TrajectoryManager designed to load, parse, and process raw robot trajectory 
+    data sequences directly captured via ROS2 bag file interfaces.
     """
-    def __init__(self, config_file, filter_order = 4, cutoff_freq = 30, decimate_factor = 10):
+    def __init__(self, config_file: str, filter_order: int = 4, cutoff_freq: float = 30.0, decimate_factor: int = 10) -> None:
+        """
+        Initialize the TrajectoryManagerROS2 class.
+
+        Args:
+            config_file (str): File system path targeting the pipeline configuration description file.
+            filter_order (int, optional): Default order for the Butterworth filter if not specified in the configuration. Defaults to 4.
+            cutoff_freq (float, optional): Default cut-off frequency [rad/s] if not specified in the configuration. Defaults to 30.0.
+            decimate_factor (int, optional): Default downsampling decimation factor if not specified in the configuration. Defaults to 10.
+        """
         super().__init__(config_file, filter_order, cutoff_freq, decimate_factor)
         return
 
     @staticmethod
-    def read_bag(file_path, topic_name, joint_names=None):
+    def read_bag(file_path: str, topic_name: str, joint_names: Optional[list[str]] = None) -> pd.DataFrame:
+        """
+        Open and parse a targeted ROS2 bag directory database extracting tracking records from a specified topic channel.
+
+        Args:
+            file_path (str): File system path pointing directly to the target ROS2 bag directory location.
+            topic_name (str): Exact name identifier matching the registered JointState topic sequence to extract.
+            joint_names (list[str], optional): Explicit ordering list of joint names to extract. If None, uses configuration profiles. Defaults to None.
+
+        Returns:
+            pd.DataFrame: A populated Pandas DataFrame containing the ordered time, tracking positions, effort values, and optional velocity records.
+        """
         first = True
         # Open the bag reader
         reader = rosbag2_py.SequentialReader()

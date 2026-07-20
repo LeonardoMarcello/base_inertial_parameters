@@ -34,8 +34,6 @@ identification:
   # CasADi optimizer ----
   positive_threshold: 1e-10 # positive threshold for constrained problem definition
   inertia_scale_factor: 1
-  numerical_eigen: true     # whether to use numerical check for semidefinite positiveness of inertia matrix
-
   weight:
     loss: 1 # gain factor for base parameters optimization
 
